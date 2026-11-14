@@ -1,13 +1,18 @@
 package dev.panoterm.term
 
-import dev.panoterm.App
-import dev.panoterm.data.Host
-import dev.panoterm.data.KnownHosts
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.os.Handler
+import android.os.Looper
 import core.ConnectOptions
 import core.Core
 import core.HostKeyVerifier
 import core.Session
 import core.SessionListener
+import dev.panoterm.App
+import dev.panoterm.Notifier
+import dev.panoterm.data.Host
+import dev.panoterm.data.KnownHosts
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import java.util.UUID
@@ -62,14 +67,25 @@ class ByteRing(private val cap: Int) {
     }
 }
 
-class TermSession(val host: Host, private val app: App) {
+data class PortForward(val remoteHost: String, val remotePort: Int, val localPort: Int)
+
+class TermSession(host0: Host, private val app: App) {
     enum class State { IDLE, CONNECTING, CONNECTED, CLOSED }
 
     val id: String = UUID.randomUUID().toString()
+
+    @Volatile var host: Host = host0
+        private set
+
     private val _state = MutableStateFlow(State.IDLE)
     val state: StateFlow<State> = _state
     private val _message = MutableStateFlow<String?>(null)
     val message: StateFlow<String?> = _message
+    private val _forwards = MutableStateFlow<List<PortForward>>(emptyList())
+    val forwards: StateFlow<List<PortForward>> = _forwards
+    /** Seconds until the next automatic reconnect, or null. */
+    private val _reconnectIn = MutableStateFlow<Int?>(null)
+    val reconnectIn: StateFlow<Int?> = _reconnectIn
 
     @Volatile var appCursor = false
     @Volatile var bracketedPaste = false
@@ -77,11 +93,35 @@ class TermSession(val host: Host, private val app: App) {
     @Volatile private var go: Session? = null
     @Volatile private var generation = 0
     private val lock = Any()
-    private val ring = ByteRing(1 shl 20)
+    private val ring = ByteRing(2 shl 20)
     private var sink: ((ByteArray) -> Unit)? = null
     private val writer = Executors.newSingleThreadExecutor()
+    private val main = Handler(Looper.getMainLooper())
     private var cols = 80
     private var rows = 24
+
+    /** True once the user has connected successfully and hasn't disconnected: drives auto-reconnect. */
+    @Volatile private var wantConnected = false
+    private var attempt = 0
+    private var reconnectTask: Runnable? = null
+    private var lastNotify = 0L
+
+    private val scanner = OutputScanner(
+        onBell = {
+            if (app.settings.current.notifyOnBell) notifyUser(host.title, "입력을 기다리고 있습니다 (터미널 벨)")
+        },
+        onNotify = { title, body -> notifyUser(title.ifBlank { host.title }, body.ifBlank { "알림" }) },
+        onClipboard = { text ->
+            main.post {
+                app.getSystemService(ClipboardManager::class.java)
+                    .setPrimaryClip(ClipData.newPlainText("remote", text))
+            }
+        },
+    )
+
+    fun updateHost(h: Host) {
+        if (h.id == host.id) host = h
+    }
 
     // ---- output ----
 
@@ -92,7 +132,7 @@ class TermSession(val host: Host, private val app: App) {
 
     private fun note(text: String) = emit("\r\n\u001b[33m[PanoTerm] $text\u001b[0m\r\n".toByteArray())
 
-    /** Replays buffered output, then streams new output to [s] (called on the Go reader thread). */
+    /** Replays buffered output, then streams new output to [s]. */
     fun attach(s: (ByteArray) -> Unit) = synchronized(lock) {
         val snap = ring.snapshot()
         if (snap.isNotEmpty()) s(snap)
@@ -100,6 +140,15 @@ class TermSession(val host: Host, private val app: App) {
     }
 
     fun detach() = synchronized(lock) { sink = null }
+
+    private fun notifyUser(title: String, body: String) {
+        val now = System.currentTimeMillis()
+        if (now - lastNotify < 4000) return
+        // Only when the user is not already looking at this session.
+        if (app.isForeground && app.visibleSessionId == id) return
+        lastNotify = now
+        Notifier.agent(app, id, title, body)
+    }
 
     // ---- input ----
 
@@ -131,20 +180,21 @@ class TermSession(val host: Host, private val app: App) {
 
     fun connect() {
         if (_state.value == State.CONNECTING || _state.value == State.CONNECTED) return
+        cancelReconnect()
         _state.value = State.CONNECTING
         _message.value = null
         val gen = ++generation
-        note("${host.user}@${host.address}:${host.port} 연결 중...")
+        val h = host
+        note("${h.user}@${h.address}:${h.port} 연결 중...")
         thread(name = "ssh-connect") {
             var pem: ByteArray? = null
             try {
-                val keyId = host.keyId ?: throw IllegalStateException("이 호스트에 SSH 키가 지정되지 않았습니다")
-                val node = if (host.useTailnet) {
+                val keyId = h.keyId ?: throw IllegalStateException("이 호스트에 SSH 키가 지정되지 않았습니다")
+                val node = if (h.useTailnet) {
                     waitForTailscale()
                     app.tailscale.nodeOrNull() ?: throw IllegalStateException("Tailscale이 시작되지 않았습니다")
                 } else null
                 pem = app.keys.privateKey(keyId)
-                val h = host // ConnectOptions also has a `host` property; avoid shadowing inside apply
                 val opts = ConnectOptions().apply {
                     setHost(h.address.trim())
                     setPort(h.port.toLong())
@@ -153,14 +203,16 @@ class TermSession(val host: Host, private val app: App) {
                     setUseTailnet(h.useTailnet)
                     setCols(cols.toLong())
                     setRows(rows.toLong())
-                    setCommand(startupCommand())
+                    setCommand(startupCommand(h))
                     setEnv("MOBILE_TERM=1\nLANG=C.UTF-8")
                 }
                 val s = Core.connect(node, opts, verifier, listener(gen))
                 if (gen != generation) { s.close(); return@thread }
                 go = s
+                wantConnected = true
+                attempt = 0
+                _forwards.value = emptyList()
                 _state.value = State.CONNECTED
-                // Size may have changed while connecting.
                 writer.execute { runCatching { s.resize(cols.toLong(), rows.toLong()) } }
             } catch (e: Exception) {
                 if (gen == generation) {
@@ -168,6 +220,7 @@ class TermSession(val host: Host, private val app: App) {
                     _message.value = msg
                     _state.value = State.CLOSED
                     note("연결 실패: $msg")
+                    maybeScheduleReconnect()
                 }
             } finally {
                 pem?.fill(0)
@@ -175,11 +228,47 @@ class TermSession(val host: Host, private val app: App) {
         }
     }
 
+    /** User-initiated disconnect: no auto-reconnect. */
     fun disconnect() {
+        wantConnected = false
+        cancelReconnect()
         generation++
         go?.close()
         go = null
+        _forwards.value = emptyList()
         _state.value = State.CLOSED
+    }
+
+    /** Network came back: retry right away instead of waiting for the backoff. */
+    fun onNetworkAvailable() {
+        if (_state.value == State.CLOSED && wantConnected && host.autoReconnect) main.post { connect() }
+    }
+
+    private fun maybeScheduleReconnect() {
+        if (!wantConnected || !host.autoReconnect) return
+        if (attempt >= 30) { note("자동 재연결 중단 (30회 실패)"); return }
+        val delaySec = minOf(30, 1 shl minOf(attempt, 5))
+        attempt++
+        main.post {
+            cancelReconnect()
+            var left = delaySec
+            _reconnectIn.value = left
+            val tick = object : Runnable {
+                override fun run() {
+                    left--
+                    if (left <= 0) { _reconnectIn.value = null; reconnectTask = null; connect() }
+                    else { _reconnectIn.value = left; main.postDelayed(this, 1000) }
+                }
+            }
+            reconnectTask = tick
+            main.postDelayed(tick, 1000)
+        }
+    }
+
+    private fun cancelReconnect() {
+        reconnectTask?.let { main.removeCallbacks(it) }
+        reconnectTask = null
+        _reconnectIn.value = null
     }
 
     private fun waitForTailscale() {
@@ -194,9 +283,9 @@ class TermSession(val host: Host, private val app: App) {
         }
     }
 
-    private fun startupCommand(): String {
-        if (!host.tmux) return ""
-        val name = host.tmuxSession.ifBlank { "main" }.replace(Regex("[^A-Za-z0-9_.-]"), "_")
+    private fun startupCommand(h: Host): String {
+        if (!h.tmux) return ""
+        val name = h.tmuxSession.ifBlank { "main" }.replace(Regex("[^A-Za-z0-9_.-]"), "_")
         // POSIX sh. Falls back to a login shell if tmux is missing.
         return "export MOBILE_TERM=1; " +
             "if command -v tmux >/dev/null 2>&1; then exec tmux -u new -A -s $name; " +
@@ -205,15 +294,19 @@ class TermSession(val host: Host, private val app: App) {
 
     private fun listener(gen: Int) = object : SessionListener {
         override fun onData(data: ByteArray) {
-            if (gen == generation) emit(data)
+            if (gen != generation) return
+            scanner.feed(data)
+            emit(data)
         }
 
         override fun onClosed(reason: String) {
             if (gen != generation) return
             go = null
+            _forwards.value = emptyList()
             _message.value = reason
             _state.value = State.CLOSED
             note("연결 종료: $reason")
+            maybeScheduleReconnect()
         }
     }
 
@@ -234,6 +327,33 @@ class TermSession(val host: Host, private val app: App) {
             return ok
         }
     }
+
+    // ---- extras ----
+
+    /** Uploads [data] via SFTP to ~/.cache/panoterm/ and returns the remote path through [done]. */
+    fun upload(name: String, data: ByteArray, done: (Result<String>) -> Unit) {
+        val s = go ?: return done(Result.failure(IllegalStateException("연결되어 있지 않습니다")))
+        thread(name = "sftp-upload") {
+            val r = runCatching { s.uploadFile(name, data) }
+            main.post { done(r) }
+        }
+    }
+
+    fun forward(remoteHost: String, remotePort: Int, done: (Result<PortForward>) -> Unit) {
+        val s = go ?: return done(Result.failure(IllegalStateException("연결되어 있지 않습니다")))
+        thread(name = "forward") {
+            val r = runCatching {
+                val local = s.forwardLocal(remoteHost, remotePort.toLong()).toInt()
+                PortForward(remoteHost, remotePort, local).also { _forwards.value = _forwards.value + it }
+            }
+            main.post { done(r) }
+        }
+    }
+
+    fun stopForward(f: PortForward) {
+        go?.stopForward(f.localPort.toLong())
+        _forwards.value = _forwards.value.filterNot { it.localPort == f.localPort }
+    }
 }
 
 class SessionManager(private val app: App) {
@@ -245,10 +365,14 @@ class SessionManager(private val app: App) {
     /** Reuses an open session for the same host, otherwise creates one (connects once the view reports its size). */
     @Synchronized
     fun open(host: Host): TermSession {
-        _sessions.value.firstOrNull { it.host.id == host.id && it.state.value != TermSession.State.CLOSED }?.let { return it }
-        _sessions.value.filter { it.host.id == host.id }.forEach { close(it) }
+        _sessions.value.firstOrNull { it.host.id == host.id }?.let {
+            it.updateHost(host)
+            if (it.state.value == TermSession.State.CLOSED) it.connect()
+            return it
+        }
         val s = TermSession(host, app)
         _sessions.value = _sessions.value + s
+        SessionService.update(app, _sessions.value.size)
         return s
     }
 
@@ -256,5 +380,17 @@ class SessionManager(private val app: App) {
     fun close(s: TermSession) {
         s.disconnect()
         _sessions.value = _sessions.value.filterNot { it.id == s.id }
+        SessionService.update(app, _sessions.value.size)
     }
+
+    fun next(after: TermSession, delta: Int): TermSession? {
+        val list = _sessions.value
+        if (list.size < 2) return null
+        val i = list.indexOfFirst { it.id == after.id }
+        return list[((i + delta) % list.size + list.size) % list.size]
+    }
+
+    fun onHostChanged(h: Host) = _sessions.value.forEach { it.updateHost(h) }
+
+    fun onNetworkAvailable() = _sessions.value.forEach { it.onNetworkAvailable() }
 }

@@ -17,6 +17,9 @@ data class Host(
     val tmux: Boolean = true,
     val tmuxSession: String = "main",
     val fontSize: Int = 14,
+    /** 0 = fit to screen. >0 = "wide viewport": remote sees this many columns, phone pans horizontally. */
+    val fixedCols: Int = 0,
+    val autoReconnect: Boolean = true,
 ) {
     val title: String get() = name.ifBlank { address }
 
@@ -31,9 +34,13 @@ data class Host(
         .put("tmux", tmux)
         .put("tmuxSession", tmuxSession)
         .put("fontSize", fontSize)
+        .put("fixedCols", fixedCols)
+        .put("autoReconnect", autoReconnect)
 
     companion object {
         fun fromJson(o: JSONObject) = Host(
+            fixedCols = o.optInt("fixedCols", 0),
+            autoReconnect = o.optBoolean("autoReconnect", true),
             id = o.getString("id"),
             name = o.optString("name"),
             address = o.optString("address"),

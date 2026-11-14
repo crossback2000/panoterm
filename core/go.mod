@@ -3,6 +3,7 @@ module panoterm/core
 go 1.27.4
 
 require (
+	github.com/pkg/sftp v1.13.12
 	golang.org/x/crypto v0.59.0
 	golang.org/x/mobile v0.0.0-20261011034528-197770444867
 	tailscale.com v1.104.7
@@ -26,6 +27,7 @@ require (
 	github.com/huin/goupnp v1.3.0 // indirect
 	github.com/jsimonetti/rtnetlink v1.4.2 // indirect
 	github.com/klauspost/compress v1.20.0 // indirect
+	github.com/kr/fs v0.1.0 // indirect
 	github.com/mdlayher/netlink v1.11.2 // indirect
 	github.com/mdlayher/socket v0.7.0 // indirect
 	github.com/mitchellh/go-ps v1.0.0 // indirect

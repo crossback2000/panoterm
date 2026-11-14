@@ -9,14 +9,18 @@
     @font-face { font-family: "D2Coding"; src: url("fonts/D2Coding-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; }
     @font-face { font-family: "D2Coding"; src: url("fonts/D2Coding-Bold.ttf") format("truetype"); font-weight: 700; font-style: normal; }
     html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
-    #t { position: absolute; inset: 0; padding: 2px 4px; }
+    /* #wrap scrolls horizontally in wide-viewport mode; #t is the xterm host. */
+    #wrap { position: absolute; inset: 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+    #wrap::-webkit-scrollbar { display: none; }
+    #t { position: relative; height: 100%; padding: 2px 4px; box-sizing: border-box; }
   </style>
   <script src="xterm.js"></script>
   <script src="addon-fit.js"></script>
   <script src="addon-unicode11.js"></script>
+  <script src="addon-web-links.js"></script>
 </head>
 <body>
-  <div id="t"></div>
+  <div id="wrap"><div id="t"></div></div>
   <script src="term.js"></script>
 </body>
 </html>

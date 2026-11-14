@@ -35,6 +35,9 @@ class TailscaleManager(private val ctx: Context) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var callbackRegistered = false
 
+    /** Called when the default network becomes available (after loss / change). */
+    var onNetworkAvailable: (() -> Unit)? = null
+
     fun nodeOrNull(): Node? = node
     val isRunning: Boolean get() = _state.value == "Running"
 
@@ -134,7 +137,10 @@ class TailscaleManager(private val ctx: Context) {
         callbackRegistered = true
         val cm = ctx.getSystemService(ConnectivityManager::class.java)
         cm.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(network: Network) = pushNetworkInfo()
+            override fun onAvailable(network: Network) {
+                pushNetworkInfo()
+                onNetworkAvailable?.invoke()
+            }
             override fun onLinkPropertiesChanged(network: Network, lp: LinkProperties) = pushNetworkInfo()
             override fun onLost(network: Network) = pushNetworkInfo()
         })

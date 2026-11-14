@@ -212,6 +212,7 @@ func (s *Session) keepAlive() {
 func (s *Session) finish(reason string) {
 	s.closeOnce.Do(func() {
 		close(s.done)
+		s.closeForwards()
 		s.sess.Close()
 		s.client.Close()
 		s.l.OnClosed(reason)

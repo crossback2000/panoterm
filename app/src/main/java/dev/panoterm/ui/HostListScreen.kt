@@ -68,7 +68,7 @@ fun HostListScreen(
                 title = { Text("PanoTerm") },
                 actions = {
                     TextButton(onClick = onKeys) { Text("SSH 키") }
-                    TextButton(onClick = onLicenses) { Text("ⓘ") }
+                    TextButton(onClick = onLicenses) { Text("설정") }
                 },
             )
         },

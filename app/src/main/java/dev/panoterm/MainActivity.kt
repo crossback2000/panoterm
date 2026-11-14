@@ -1,18 +1,29 @@
 package dev.panoterm
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.SystemClock
 import android.view.KeyEvent
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
+import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
+import androidx.biometric.BiometricPrompt
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -21,8 +32,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
 import dev.panoterm.data.Host
 import dev.panoterm.term.Prompts
 import dev.panoterm.term.TerminalInputView
@@ -31,24 +45,44 @@ import dev.panoterm.ui.HostKeyDialog
 import dev.panoterm.ui.HostListScreen
 import dev.panoterm.ui.KeysScreen
 import dev.panoterm.ui.LicensesScreen
+import dev.panoterm.ui.SettingsScreen
 import dev.panoterm.ui.TerminalScreen
+import kotlinx.coroutines.flow.MutableStateFlow
 
 sealed interface Screen {
     data object Hosts : Screen
     data object Keys : Screen
+    data object Settings : Screen
     data object Licenses : Screen
     data class EditHost(val id: String?, val prefill: Host? = null) : Screen
     data class Terminal(val sessionId: String) : Screen
 }
 
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
     /** Set while the terminal screen is visible; receives hardware (K380) keys. */
     var keyTarget: TerminalInputView? = null
     private val consumedDown = HashSet<Int>()
 
+    /** Navigation requests from intents (notifications, launcher shortcuts). */
+    val navRequest = MutableStateFlow<Screen?>(null)
+    val locked = MutableStateFlow(false)
+    private var unlockedOnce = false
+    private var lastStop = 0L
+
+    private val requestNotif = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { }
+
+    val biometricAvailable: Boolean
+        get() = BiometricManager.from(this).canAuthenticate(BIOMETRIC_WEAK or DEVICE_CREDENTIAL) == BiometricManager.BIOMETRIC_SUCCESS
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+            requestNotif.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        handleIntent(intent)
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {
                 Box(
@@ -57,10 +91,59 @@ class MainActivity : ComponentActivity() {
                         .background(Color.Black)
                         .windowInsetsPadding(WindowInsets.safeDrawing)
                 ) {
-                    AppRoot(this@MainActivity)
+                    val isLocked by locked.collectAsState()
+                    if (isLocked) LockScreen { authenticate() } else AppRoot(this@MainActivity)
                 }
             }
         }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        val app = App.instance
+        val needLock = app.settings.current.biometricLock && biometricAvailable &&
+            (!unlockedOnce || SystemClock.elapsedRealtime() - lastStop > 5 * 60_000)
+        if (needLock) {
+            locked.value = true
+            authenticate()
+        }
+    }
+
+    override fun onStop() {
+        super.onStop()
+        lastStop = SystemClock.elapsedRealtime()
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIntent(intent)
+    }
+
+    private fun handleIntent(i: Intent?) {
+        val app = App.instance
+        i?.getStringExtra(Notifier.EXTRA_SESSION)?.let { id ->
+            if (app.sessions.get(id) != null) navRequest.value = Screen.Terminal(id)
+        }
+        i?.getStringExtra(Notifier.EXTRA_HOST)?.let { id ->
+            val h = app.hosts.get(id) ?: return@let
+            if (h.keyId != null) navRequest.value = Screen.Terminal(app.sessions.open(h).id)
+            else navRequest.value = Screen.EditHost(h.id)
+        }
+    }
+
+    private fun authenticate() {
+        val prompt = BiometricPrompt(this, ContextCompat.getMainExecutor(this), object : BiometricPrompt.AuthenticationCallback() {
+            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                unlockedOnce = true
+                locked.value = false
+            }
+        })
+        prompt.authenticate(
+            BiometricPrompt.PromptInfo.Builder()
+                .setTitle("PanoTerm 잠금 해제")
+                .setAllowedAuthenticators(BIOMETRIC_WEAK or DEVICE_CREDENTIAL)
+                .build()
+        )
     }
 
     /**
@@ -69,16 +152,31 @@ class MainActivity : ComponentActivity() {
      */
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         val t = keyTarget
-        if (t != null && t.isAttachedToWindow) {
+        if (t != null && t.isAttachedToWindow && !locked.value) {
             when (event.action) {
                 KeyEvent.ACTION_DOWN -> if (t.handleHardwareKey(event)) {
                     consumedDown.add(event.keyCode)
                     return true
                 }
-                KeyEvent.ACTION_UP -> if (consumedDown.remove(event.keyCode)) return true
+                KeyEvent.ACTION_UP -> {
+                    if (t.handleHardwareKeyUp(event)) return true
+                    if (consumedDown.remove(event.keyCode)) return true
+                }
             }
         }
         return super.dispatchKeyEvent(event)
+    }
+}
+
+@Composable
+private fun LockScreen(onUnlock: () -> Unit) {
+    Column(
+        Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally,
+    ) {
+        Text("🔒 PanoTerm", color = Color.White, style = MaterialTheme.typography.headlineSmall)
+        Button(onClick = onUnlock) { Text("잠금 해제") }
     }
 }
 
@@ -87,8 +185,17 @@ private fun AppRoot(activity: MainActivity) {
     val app = App.instance
     var screen by remember { mutableStateOf<Screen>(Screen.Hosts) }
     val prompt by Prompts.hostKey.collectAsState()
+    val nav by activity.navRequest.collectAsState()
+    val hosts by app.hosts.hosts.collectAsState()
 
-    BackHandler(enabled = screen != Screen.Hosts) { screen = Screen.Hosts }
+    LaunchedEffect(nav) {
+        nav?.let { screen = it; activity.navRequest.value = null }
+    }
+    LaunchedEffect(hosts) { Shortcuts.refresh(activity, hosts) }
+
+    BackHandler(enabled = screen != Screen.Hosts) {
+        screen = if (screen == Screen.Licenses) Screen.Settings else Screen.Hosts
+    }
 
     when (val s = screen) {
         Screen.Hosts -> HostListScreen(
@@ -96,15 +203,25 @@ private fun AppRoot(activity: MainActivity) {
             onOpenSession = { screen = Screen.Terminal(it.id) },
             onEdit = { id, prefill -> screen = Screen.EditHost(id, prefill) },
             onKeys = { screen = Screen.Keys },
-            onLicenses = { screen = Screen.Licenses },
+            onLicenses = { screen = Screen.Settings },
         )
         Screen.Keys -> KeysScreen(app = app, onBack = { screen = Screen.Hosts })
-        Screen.Licenses -> LicensesScreen(onBack = { screen = Screen.Hosts })
+        Screen.Settings -> SettingsScreen(
+            app = app,
+            biometricAvailable = activity.biometricAvailable,
+            onLicenses = { screen = Screen.Licenses },
+            onBack = { screen = Screen.Hosts },
+        )
+        Screen.Licenses -> LicensesScreen(onBack = { screen = Screen.Settings })
         is Screen.EditHost -> HostEditScreen(app = app, hostId = s.id, prefill = s.prefill, onDone = { screen = Screen.Hosts })
         is Screen.Terminal -> {
             val session = app.sessions.get(s.sessionId)
             if (session == null) LaunchedEffect(s) { screen = Screen.Hosts }
-            else TerminalScreen(app = app, session = session, activity = activity, onBack = { screen = Screen.Hosts })
+            else TerminalScreen(
+                app = app, session = session, activity = activity,
+                onBack = { screen = Screen.Hosts },
+                onSwitch = { screen = Screen.Terminal(it.id) },
+            )
         }
     }
 

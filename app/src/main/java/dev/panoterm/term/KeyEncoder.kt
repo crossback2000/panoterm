@@ -55,12 +55,12 @@ object KeyEncoder {
     }
 
     /** Full hardware key event → bytes, or null if the key should be left to the system. */
-    fun encode(e: KeyEvent, appCursor: Boolean, stickyCtrl: Boolean = false, stickyAlt: Boolean = false): ByteArray? {
-        val ctrl = e.isCtrlPressed || stickyCtrl
-        val alt = e.isAltPressed || stickyAlt
+    fun encode(e: KeyEvent, appCursor: Boolean, ctrl: Boolean, alt: Boolean, stripCaps: Boolean = false): ByteArray? {
         special(e.keyCode, e.isShiftPressed, ctrl, alt, appCursor)?.let { return it.toByteArray() }
 
-        val meta = e.metaState and (KeyEvent.META_CTRL_MASK or KeyEvent.META_ALT_MASK or KeyEvent.META_META_MASK).inv()
+        var strip = KeyEvent.META_CTRL_MASK or KeyEvent.META_ALT_MASK or KeyEvent.META_META_MASK
+        if (stripCaps) strip = strip or KeyEvent.META_CAPS_LOCK_ON
+        val meta = e.metaState and strip.inv()
         val uc = e.getUnicodeChar(meta)
         if (uc == 0 || (uc and KeyCharacterMap.COMBINING_ACCENT) != 0) return null
         return encodeChar(uc, ctrl, alt)

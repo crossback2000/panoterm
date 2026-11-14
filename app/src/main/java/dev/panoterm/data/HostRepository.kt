@@ -21,7 +21,11 @@ class HostRepository(private val file: File) {
         val cur = _hosts.value
         val next = if (cur.any { it.id == h.id }) cur.map { if (it.id == h.id) h else it } else cur + h
         save(next)
+        onChanged?.invoke(h)
     }
+
+    /** Notifies open sessions about edited hosts. */
+    var onChanged: ((Host) -> Unit)? = null
 
     @Synchronized
     fun delete(id: String) = save(_hosts.value.filterNot { it.id == id })

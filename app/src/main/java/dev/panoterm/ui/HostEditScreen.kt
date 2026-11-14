@@ -51,6 +51,9 @@ fun HostEditScreen(app: App, hostId: String?, prefill: Host?, onDone: () -> Unit
     var tmux by remember { mutableStateOf(base.tmux) }
     var tmuxSession by remember { mutableStateOf(base.tmuxSession) }
     var fontSize by remember { mutableStateOf(base.fontSize.toString()) }
+    var fixedCols by remember { mutableStateOf(if (base.fixedCols > 0) base.fixedCols.toString() else "") }
+    var autoReconnect by remember { mutableStateOf(base.autoReconnect) }
+    val ctx = androidx.compose.ui.platform.LocalContext.current
 
     val valid = address.isNotBlank() && user.isNotBlank() && (port.toIntOrNull() ?: 0) in 1..65535 && keyId != null
 
@@ -107,6 +110,14 @@ fun HostEditScreen(app: App, hostId: String?, prefill: Host?, onDone: () -> Unit
                 modifier = Modifier.fillMaxWidth(),
             )
 
+            OutlinedTextField(
+                fixedCols, { fixedCols = it.filter(Char::isDigit).take(3) },
+                label = { Text("넓게 보기 열 수 (비우면 화면 맞춤, 예: 160)") }, singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth(),
+            )
+            SwitchRow("끊기면 자동 재연결", autoReconnect) { autoReconnect = it }
+
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
                     enabled = valid,
@@ -122,11 +133,18 @@ fun HostEditScreen(app: App, hostId: String?, prefill: Host?, onDone: () -> Unit
                                 tmux = tmux,
                                 tmuxSession = tmuxSession.trim().ifBlank { "main" },
                                 fontSize = (fontSize.toIntOrNull() ?: 14).coerceIn(8, 32),
+                                fixedCols = (fixedCols.toIntOrNull() ?: 0).let { if (it == 0) 0 else it.coerceIn(40, 400) },
+                                autoReconnect = autoReconnect,
                             )
                         )
                         onDone()
                     },
                 ) { Text("저장") }
+                if (hostId != null) {
+                    androidx.compose.material3.OutlinedButton(onClick = {
+                        app.hosts.get(hostId)?.let { dev.panoterm.Shortcuts.pin(ctx, it) }
+                    }) { Text("홈 화면에 추가") }
+                }
                 if (hostId != null) {
                     TextButton(onClick = { app.hosts.delete(hostId); onDone() }) {
                         Text("삭제", color = MaterialTheme.colorScheme.error)
