@@ -1,6 +1,6 @@
 package dev.panoterm.term
 
-import android.util.Base64
+import java.util.Base64
 
 /**
  * Watches the raw output stream (independently of the WebView, so it also
@@ -58,7 +58,7 @@ class OutputScanner(
             "52" -> {
                 val data = rest.substringAfter(';', "")
                 if (data.isNotEmpty() && data != "?") {
-                    runCatching { String(Base64.decode(data, Base64.DEFAULT), Charsets.UTF_8) }
+                    runCatching { String(Base64.getMimeDecoder().decode(data), Charsets.UTF_8) }
                         .getOrNull()?.let(onClipboard)
                 }
             }

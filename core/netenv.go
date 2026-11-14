@@ -85,6 +85,14 @@ func SetInterfaces(spec string) {
 	envMu.Unlock()
 }
 
+// SetDefaultRouteInterface tells netmon which interface carries the default route
+// (Android does not let Go read the routing table).
+func SetDefaultRouteInterface(name string) {
+	if name != "" {
+		netmon.UpdateLastKnownDefaultRouteInterface(name)
+	}
+}
+
 // SetDNSServers sets the system DNS servers (comma separated IPs).
 func SetDNSServers(csv string) {
 	var s []string

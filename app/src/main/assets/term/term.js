@@ -258,8 +258,36 @@ function start() {
     }
     let end = lines.length;
     while (end > start && lines[end - 1].trim() === '') end--;
-    return lines.slice(start, end).join('\n');
+    return tablesToCards(lines.slice(start, end)).join('\n');
   };
+
+  // Replace table blocks with one "card" per row (reads well on a narrow screen):
+  //   ▸ 앱: Termius
+  //      장점: 깔끔한 UI
+  function tablesToCards(lines) {
+    const out = [];
+    let block = [];
+    function flush() {
+      const t = block.length >= 3 ? parseBlock(block) : null;
+      if (!t) { out.push.apply(out, block); block = []; return; }
+      const head = t.header ? t.rows[0] : null;
+      const body = t.header ? t.rows.slice(1) : t.rows;
+      body.forEach(function (r) {
+        r.forEach(function (cell, i) {
+          const label = head && head[i] ? head[i] + ': ' : '';
+          out.push((i === 0 ? '▸ ' : '   ') + label + cell);
+        });
+        out.push('');
+      });
+      block = [];
+    }
+    for (const s of lines) {
+      if (isBorder(s) || isBoxRow(s) || isMdRow(s)) block.push(s);
+      else { if (block.length) flush(); out.push(s); }
+    }
+    if (block.length) flush();
+    return out;
+  }
 
   // ---------- analysis after output: approval prompt + table count ----------
 
@@ -302,4 +330,20 @@ function start() {
   new ResizeObserver(doFit).observe(wrap);
   doFit();
   Bridge.onReady(term.cols, term.rows);
+
+  if (params.get('debug') === '1') {
+    window.diag = function () {
+      const sc = el.querySelector('.xterm-screen');
+      const rowsEl = el.querySelector('.xterm-rows');
+      return JSON.stringify({
+        cols: term.cols, rows: term.rows, win: [innerWidth, innerHeight],
+        wrap: [wrap.clientWidth, wrap.clientHeight], screen: sc ? [sc.offsetWidth, sc.offsetHeight] : null,
+        canvas: el.querySelectorAll('canvas').length, bufLen: term.buffer.active.length,
+        rowsText: rowsEl ? [...rowsEl.children].slice(0, 4).map(function (d) { return d.textContent; }) : null,
+        color: rowsEl ? getComputedStyle(rowsEl).color : null, font: document.fonts.check('14px "D2Coding"'),
+        css: [getComputedStyle(wrap).position, getComputedStyle(wrap).height, document.body.clientHeight, document.documentElement.clientHeight, el.clientHeight]
+      });
+    };
+    setInterval(function () { console.log('diag ' + window.diag()); }, 4000);
+  }
 }

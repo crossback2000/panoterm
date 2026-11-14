@@ -27,6 +27,11 @@ type StatusListener interface {
 	OnLog(line string)
 }
 
+var debugLogs bool
+
+// SetDebugLogs forwards tailscaled's verbose backend logs to StatusListener.OnLog.
+func SetDebugLogs(on bool) { debugLogs = on }
+
 type Node struct {
 	mu       sync.Mutex
 	dir      string
@@ -50,14 +55,30 @@ func (n *Node) Start(authKey string, l StatusListener) error {
 	os.Setenv("TS_NO_LOGS_NO_SUPPORT", "true")
 
 	dir := filepath.Join(n.dir, "tsnet")
-	if err := os.MkdirAll(dir, 0o700); err != nil {
-		return err
+	logs := filepath.Join(n.dir, "tslogs")
+	for _, d := range []string{dir, logs} {
+		if err := os.MkdirAll(d, 0o700); err != nil {
+			return err
+		}
+	}
+	// Android has no $HOME / cache dir convention; without these tailscale's
+	// logpolicy panics with "no safe place found to store log state".
+	os.Setenv("TS_LOGS_DIR", logs)
+	if os.Getenv("HOME") == "" {
+		os.Setenv("HOME", n.dir)
+	}
+	if os.Getenv("XDG_CACHE_HOME") == "" {
+		os.Setenv("XDG_CACHE_HOME", filepath.Join(n.dir, "cache"))
 	}
 	srv := &tsnet.Server{
 		Dir:      dir,
 		Hostname: n.hostname,
 		AuthKey:  authKey,
-		Logf:     func(string, ...any) {},
+		Logf: func(format string, args ...any) {
+			if debugLogs && l != nil {
+				l.OnLog("[ts] " + fmt.Sprintf(format, args...))
+			}
+		},
 		UserLogf: func(format string, args ...any) {
 			if l != nil {
 				l.OnLog(fmt.Sprintf(format, args...))

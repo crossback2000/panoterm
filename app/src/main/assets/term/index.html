@@ -10,7 +10,9 @@
     @font-face { font-family: "D2Coding"; src: url("fonts/D2Coding-Bold.ttf") format("truetype"); font-weight: 700; font-style: normal; }
     html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
     /* #wrap scrolls horizontally in wide-viewport mode; #t is the xterm host. */
-    #wrap { position: absolute; inset: 0; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+    /* explicit edges + height: some WebView builds ignore the `inset` shorthand */
+    /* Anchored to the viewport (not body %) — body height can collapse to 0 in some WebViews. */
+    #wrap { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
     #wrap::-webkit-scrollbar { display: none; }
     #t { position: relative; height: 100%; padding: 2px 4px; box-sizing: border-box; }
   </style>

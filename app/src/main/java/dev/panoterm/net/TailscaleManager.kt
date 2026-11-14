@@ -43,18 +43,21 @@ class TailscaleManager(private val ctx: Context) {
 
     private val listener = object : StatusListener {
         override fun onStatus(state: String, authURL: String) {
+            android.util.Log.i("PanoTS", "state=$state authURL=${authURL.isNotBlank()}")
             _state.value = state
             _authUrl.value = authURL.ifBlank { null }
             if (state == "Running") refreshPeers()
         }
 
         override fun onLog(line: String) {
+            android.util.Log.i("PanoTS", line)
             _lastLog.value = line
         }
     }
 
     fun start() {
         if (node != null) return
+        Core.setDebugLogs(dev.panoterm.BuildConfig.DEBUG)
         pushNetworkInfo()
         registerNetworkCallback()
         _state.value = "Starting"
@@ -103,8 +106,15 @@ class TailscaleManager(private val ctx: Context) {
     }
 
     /** Go cannot enumerate interfaces or read resolv.conf on Android, so hand it both. */
+    //
+    // On Android 11+ java.net.NetworkInterface often hides the real uplinks (wlan0, rmnet...),
+    // so interfaces and addresses come from ConnectivityManager's LinkProperties first,
+    // merged with whatever NetworkInterface does expose (loopback etc.).
+    private data class If(val name: String, var index: Int, var mtu: Int, var flags: String, val addrs: LinkedHashSet<String>)
+
+    @Suppress("DEPRECATION")
     private fun pushNetworkInfo() {
-        val sb = StringBuilder()
+        val ifs = LinkedHashMap<String, If>()
         try {
             NetworkInterface.getNetworkInterfaces()?.toList()?.forEach { ni ->
                 runCatching {
@@ -116,19 +126,39 @@ class TailscaleManager(private val ctx: Context) {
                     }.ifEmpty { "-" }
                     val addrs = ni.interfaceAddresses.mapNotNull { ia ->
                         ia.address?.hostAddress?.substringBefore('%')?.let { "$it/${ia.networkPrefixLength}" }
-                    }.joinToString(",")
-                    sb.append(ni.name).append('\t').append(ni.index).append('\t')
-                        .append(runCatching { ni.mtu }.getOrDefault(1500)).append('\t')
-                        .append(flags).append('\t').append(addrs).append('\n')
+                    }
+                    ifs[ni.name] = If(ni.name, ni.index, runCatching { ni.mtu }.getOrDefault(1500), flags, LinkedHashSet(addrs))
                 }
             }
         } catch (_: Exception) {
         }
-        Core.setInterfaces(sb.toString())
 
         val cm = ctx.getSystemService(ConnectivityManager::class.java)
-        val dns = cm.getLinkProperties(cm.activeNetwork)?.dnsServers
-            ?.mapNotNull { it.hostAddress?.substringBefore('%') }.orEmpty()
+        var syntheticIndex = 1000
+        for (net in cm.allNetworks) {
+            val lp = cm.getLinkProperties(net) ?: continue
+            val name = lp.interfaceName ?: continue
+            val entry = ifs.getOrPut(name) {
+                val idx = runCatching { NetworkInterface.getByName(name)?.index }.getOrNull() ?: syntheticIndex++
+                If(name, idx, if (lp.mtu > 0) lp.mtu else 1500, "um", LinkedHashSet())
+            }
+            if (!entry.flags.contains('u')) entry.flags = "u" + entry.flags.replace("-", "")
+            lp.linkAddresses.forEach { la ->
+                la.address.hostAddress?.substringBefore('%')?.let { entry.addrs.add("$it/${la.prefixLength}") }
+            }
+        }
+
+        val sb = StringBuilder()
+        ifs.values.forEach { i ->
+            sb.append(i.name).append('\t').append(i.index).append('\t').append(i.mtu).append('\t')
+                .append(i.flags).append('\t').append(i.addrs.joinToString(",")).append('\n')
+        }
+        if (dev.panoterm.BuildConfig.DEBUG) android.util.Log.i("PanoTS", "interfaces:\n$sb")
+        Core.setInterfaces(sb.toString())
+
+        val active = cm.getLinkProperties(cm.activeNetwork)
+        Core.setDefaultRouteInterface(active?.interfaceName ?: "")
+        val dns = active?.dnsServers?.mapNotNull { it.hostAddress?.substringBefore('%') }.orEmpty()
         Core.setDNSServers(dns.joinToString(","))
     }
 

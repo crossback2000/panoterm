@@ -18,6 +18,10 @@ android {
     }
 
     buildTypes {
+        debug {
+            // x86_64 lets the debug build run on the emulator (Go code does not run under ARM translation).
+            ndk { abiFilters += "x86_64" }
+        }
         release {
             isMinifyEnabled = false
         }
@@ -29,7 +33,10 @@ android {
     }
     kotlinOptions { jvmTarget = "17" }
 
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
 }
 
 dependencies {
@@ -46,4 +53,6 @@ dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
+
+    testImplementation("junit:junit:4.13.2")
 }

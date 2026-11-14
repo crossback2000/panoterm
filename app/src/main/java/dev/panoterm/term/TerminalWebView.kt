@@ -50,6 +50,21 @@ class TerminalWebView(ctx: Context) : WebView(ctx) {
     private val slop = ViewConfiguration.get(ctx).scaledTouchSlop
 
     init {
+        if (dev.panoterm.BuildConfig.DEBUG) {
+            setWebContentsDebuggingEnabled(true)
+            webChromeClient = object : android.webkit.WebChromeClient() {
+                override fun onConsoleMessage(m: android.webkit.ConsoleMessage): Boolean {
+                    android.util.Log.i("PanoWeb", "${m.messageLevel()} ${m.message()} (${m.sourceId()}:${m.lineNumber()})")
+                    return true
+                }
+            }
+        }
+        // MATCH_PARENT is essential: with WRAP_CONTENT (the AndroidView default) the CSS viewport
+        // height is derived from the content height, which is 0 for our fixed-position layout.
+        layoutParams = android.view.ViewGroup.LayoutParams(
+            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+        )
         settings.javaScriptEnabled = true
         settings.textZoom = 100
         settings.setSupportZoom(false)
@@ -70,7 +85,8 @@ class TerminalWebView(ctx: Context) : WebView(ctx) {
             }
             false
         }
-        loadUrl("file:///android_asset/term/index.html#fs=$fontSize&cols=$fixedCols")
+        val debug = if (dev.panoterm.BuildConfig.DEBUG) "&debug=1" else ""
+        loadUrl("file:///android_asset/term/index.html#fs=$fontSize&cols=$fixedCols$debug")
     }
 
     /** Main thread only. Output is coalesced and flushed once per frame. */

@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -243,7 +244,7 @@ fun TerminalScreen(
                         }
                     )
                 )
-                Box(Modifier.weight(1f)) {
+                Box(Modifier.widthIn(max = 140.dp)) {
                     Text(
                         " ${session.host.title}" + if (sessions.size > 1) " ▾" else "",
                         color = Color.White, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -260,7 +261,7 @@ fun TerminalScreen(
                         }
                     }
                 }
-                Row(Modifier.horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
+                Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
                     SmallButton(if (fixedCols == 0) "↔" else "↔$fixedCols") { cycleWidth() }
                     SmallButton("▦") { openLens() }
                     SmallButton("📖") { overlay = Overlay.READER }

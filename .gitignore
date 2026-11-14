@@ -13,3 +13,4 @@ app/libs/core-sources.jar
 # local
 *.apk
 
+.claude/

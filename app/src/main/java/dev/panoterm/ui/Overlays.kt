@@ -168,12 +168,13 @@ fun ReaderView(load: (lastOnly: Boolean, (String) -> Unit) -> Unit, initialFont:
     Column(Modifier.fillMaxSize().background(Bg)) {
         Row(Modifier.fillMaxWidth().background(Panel).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             TextButton(onClick = onClose) { Text("✕ 닫기") }
-            TextButton(onClick = { lastOnly = true }) { Text(if (lastOnly) "● 마지막 응답" else "마지막 응답") }
-            TextButton(onClick = { lastOnly = false }) { Text(if (!lastOnly) "● 최근 400줄" else "최근 400줄") }
-            Spacer(Modifier.weight(1f))
-            TextButton(onClick = { fs = (fs - 1).coerceAtLeast(8) }) { Text("A−") }
-            TextButton(onClick = { fs = (fs + 1).coerceAtMost(36) }) { Text("A+") }
-            TextButton(onClick = { copy(ctx, "reader", text) }) { Text("복사") }
+            Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
+                TextButton(onClick = { lastOnly = true }) { Text(if (lastOnly) "● 마지막 응답" else "마지막 응답", maxLines = 1) }
+                TextButton(onClick = { lastOnly = false }) { Text(if (!lastOnly) "● 최근 400줄" else "최근 400줄", maxLines = 1) }
+                TextButton(onClick = { fs = (fs - 1).coerceAtLeast(8) }) { Text("A−") }
+                TextButton(onClick = { fs = (fs + 1).coerceAtMost(36) }) { Text("A+") }
+                TextButton(onClick = { copy(ctx, "reader", text) }) { Text("복사", maxLines = 1) }
+            }
         }
         SelectionContainer(Modifier.fillMaxSize()) {
             Text(
