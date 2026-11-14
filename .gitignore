@@ -1,0 +1,15 @@
+.gradle/
+build/
+local.properties
+.idea/
+*.iml
+.DS_Store
+captures/
+.cxx/
+app/libs/core.aar
+app/libs/core-sources.jar
+# Vendored assets (xterm.js, D2Coding, license texts) ARE committed so the repo builds as-is.
+
+# local
+*.apk
+
