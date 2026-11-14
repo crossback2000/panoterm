@@ -1,7 +1,18 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
+}
+
+// Release signing: keystore.properties lives OUTSIDE the repo
+// (default ~/.panoterm/keystore.properties, or $PANOTERM_KEYSTORE_PROPS).
+val signingProps = Properties().apply {
+    val path = System.getenv("PANOTERM_KEYSTORE_PROPS")
+        ?: "${System.getProperty("user.home")}/.panoterm/keystore.properties"
+    val f = file(path)
+    if (f.exists()) f.inputStream().use { load(it) }
 }
 
 android {
@@ -12,9 +23,20 @@ android {
         applicationId = "dev.panoterm"
         minSdk = 31
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 100
+        versionName = "1.0.0"
         ndk { abiFilters += "arm64-v8a" } // Galaxy S25 Ultra
+    }
+
+    signingConfigs {
+        if (signingProps.containsKey("storeFile")) {
+            create("release") {
+                storeFile = file(signingProps.getProperty("storeFile"))
+                storePassword = signingProps.getProperty("storePassword")
+                keyAlias = signingProps.getProperty("keyAlias")
+                keyPassword = signingProps.getProperty("keyPassword")
+            }
+        }
     }
 
     buildTypes {
@@ -23,7 +45,9 @@ android {
             ndk { abiFilters += "x86_64" }
         }
         release {
+            // gomobile's JNI bridge looks classes up by name; keep R8 off.
             isMinifyEnabled = false
+            signingConfigs.findByName("release")?.let { signingConfig = it }
         }
     }
 

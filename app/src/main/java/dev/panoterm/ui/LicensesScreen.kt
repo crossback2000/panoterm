@@ -38,12 +38,14 @@ private val NOTICES = listOf(
     Notice("xterm.js 5.5.0", "MIT", "© The xterm.js authors, SourceLair, Christopher Jeffrey", "xterm.LICENSE.txt"),
     Notice("@xterm/addon-fit 0.10.0", "MIT", "© The xterm.js authors", "xterm-addon-fit.LICENSE.txt"),
     Notice("@xterm/addon-unicode11 0.8.0", "MIT", "© The xterm.js authors", "xterm-addon-unicode11.LICENSE.txt"),
+    Notice("@xterm/addon-web-links 0.11.0", "MIT", "© The xterm.js authors", "xterm-addon-web-links.LICENSE.txt"),
     Notice("Tailscale (tsnet)", "BSD-3-Clause", "© 2020 Tailscale Inc & contributors", "tailscale.LICENSE.txt"),
     Notice("wireguard-go", "MIT", "© WireGuard LLC", "wireguard-go.LICENSE.txt"),
     Notice("Go 표준 라이브러리", "BSD-3-Clause", "© 2009 The Go Authors", "go.LICENSE.txt"),
     Notice("golang.org/x/crypto", "BSD-3-Clause", "© The Go Authors", "golang.org-x-crypto.LICENSE.txt"),
     Notice("golang.org/x/mobile", "BSD-3-Clause", "© The Go Authors", "golang.org-x-mobile.LICENSE.txt"),
-    Notice("AndroidX · Jetpack Compose", "Apache-2.0", "© The Android Open Source Project", "Apache-2.0.txt"),
+    Notice("github.com/pkg/sftp", "BSD-2-Clause", "© 2013 Dave Cheney", "pkg-sftp.LICENSE.txt"),
+    Notice("AndroidX · Jetpack Compose · Biometric", "Apache-2.0", "© The Android Open Source Project", "Apache-2.0.txt"),
     Notice("Kotlin · kotlinx.coroutines", "Apache-2.0", "© JetBrains s.r.o. and contributors", "Apache-2.0.txt"),
 )
 
@@ -87,7 +89,7 @@ fun LicensesScreen(onBack: () -> Unit) {
             LazyColumn(Modifier.fillMaxSize().padding(pad), contentPadding = PaddingValues(vertical = 8.dp)) {
                 item {
                     Text(
-                        "PanoTerm는 아래 오픈소스 소프트웨어와 폰트를 사용합니다. 항목을 누르면 라이선스 전문을 볼 수 있습니다.",
+                        "PanoTerm은 MIT 라이선스 오픈소스이며, 아래 오픈소스 소프트웨어와 폰트를 사용합니다. 항목을 누르면 라이선스 전문을 볼 수 있습니다.",
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     )

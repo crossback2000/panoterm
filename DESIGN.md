@@ -1,4 +1,9 @@
-# Android SSH 클라이언트 설계 문서 
+# PanoTerm 설계 문서
+
+> **구현 현황 (v1.0.0)**: 아래 1–4단계 모두 구현. 예외 — Mosh(선택, 미구현: tmux + 자동 재연결로 대체), 키 재배치는 CapsLock→Ctrl과 한/영 키 선택만 제공.
+> 터미널 렌더러는 Termux 대신 xterm.js(MIT)를 사용 (§1 참고). 앱 이름은 PocketSSH → **PanoTerm** (동명 앱 존재로 변경).
+>
+> **검증**: Go 코어 통합 테스트(실제 SSH 서버: PTY·SFTP·포워딩·호스트키), Kotlin 단위 테스트(한글 오토마타·출력 스캐너·링 버퍼), Android 15 에뮬레이터에서 접속·렌더링·표 렌즈·읽기 모드·승인 버튼·넓게 보기·키 입력 확인. 실제 S25 Ultra + K380 + Tailscale 로그인은 사용자 기기에서 확인 필요.
 
 > 목표: 광고·유료 기능·클라우드 없이, **Tailscale 내장 + Claude Code 사용에 최적화**된 개인용 안드로이드 SSH 클라이언트.
 > 대상 기기: Galaxy S25 Ultra + Logitech K380 블루투스 키보드.

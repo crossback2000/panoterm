@@ -15,13 +15,14 @@ function Get-File($url, $out) {
     Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $out
 }
 
-$XTERM = '5.5.0'; $FIT = '0.10.0'; $UNI = '0.8.0'
+$XTERM = '5.5.0'; $FIT = '0.10.0'; $UNI = '0.8.0'; $LINKS = '0.11.0'
 
 Write-Host 'xterm.js'
 Get-File "https://cdn.jsdelivr.net/npm/@xterm/xterm@$XTERM/lib/xterm.js"                 (Join-Path $term 'xterm.js')
 Get-File "https://cdn.jsdelivr.net/npm/@xterm/xterm@$XTERM/css/xterm.css"                (Join-Path $term 'xterm.css')
 Get-File "https://cdn.jsdelivr.net/npm/@xterm/addon-fit@$FIT/lib/addon-fit.js"            (Join-Path $term 'addon-fit.js')
 Get-File "https://cdn.jsdelivr.net/npm/@xterm/addon-unicode11@$UNI/lib/addon-unicode11.js" (Join-Path $term 'addon-unicode11.js')
+Get-File "https://cdn.jsdelivr.net/npm/@xterm/addon-web-links@$LINKS/lib/addon-web-links.js" (Join-Path $term 'addon-web-links.js')
 
 if (-not (Test-Path (Join-Path $fonts 'D2Coding-Regular.ttf'))) {
     Write-Host 'D2Coding'
@@ -39,6 +40,8 @@ $licenses = [ordered]@{
     'xterm.LICENSE.txt'             = "https://cdn.jsdelivr.net/npm/@xterm/xterm@$XTERM/LICENSE"
     'xterm-addon-fit.LICENSE.txt'   = "https://cdn.jsdelivr.net/npm/@xterm/addon-fit@$FIT/LICENSE"
     'xterm-addon-unicode11.LICENSE.txt' = "https://cdn.jsdelivr.net/npm/@xterm/addon-unicode11@$UNI/LICENSE"
+    'xterm-addon-web-links.LICENSE.txt' = "https://cdn.jsdelivr.net/npm/@xterm/addon-web-links@$LINKS/LICENSE"
+    'pkg-sftp.LICENSE.txt'          = 'https://raw.githubusercontent.com/pkg/sftp/master/LICENSE'
     'D2Coding.OFL.txt'              = 'https://raw.githubusercontent.com/naver/d2codingfont/master/OFL.txt'
     'tailscale.LICENSE.txt'         = 'https://raw.githubusercontent.com/tailscale/tailscale/main/LICENSE'
     'go.LICENSE.txt'                = 'https://raw.githubusercontent.com/golang/go/master/LICENSE'
