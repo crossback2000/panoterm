@@ -44,7 +44,7 @@ object Notifier {
     fun agent(ctx: Context, sessionId: String, title: String, body: String) {
         if (ctx.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return
         val n = NotificationCompat.Builder(ctx, CH_AGENT)
-            .setSmallIcon(android.R.drawable.stat_notify_chat)
+            .setSmallIcon(R.drawable.ic_stat_panoterm)
             .setContentTitle(title)
             .setContentText(body)
             .setStyle(NotificationCompat.BigTextStyle().bigText(body))

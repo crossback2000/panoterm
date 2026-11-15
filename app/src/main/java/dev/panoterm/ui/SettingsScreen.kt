@@ -22,6 +22,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
@@ -30,8 +31,26 @@ import dev.panoterm.data.Settings
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(app: App, biometricAvailable: Boolean, onLicenses: () -> Unit, onBack: () -> Unit) {
+fun SettingsScreen(
+    app: App,
+    biometricAvailable: Boolean,
+    onLicenses: () -> Unit,
+    onKeyBar: () -> Unit,
+    onSnippets: () -> Unit,
+    onBack: () -> Unit,
+) {
     val v by app.settings.values.collectAsState()
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val update by app.updates.available.collectAsState()
+    var backupMode by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) } // "export" | "import"
+    var pendingUri by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<android.net.Uri?>(null) }
+
+    val exportPicker = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/octet-stream")
+    ) { uri -> if (uri != null) { pendingUri = uri; backupMode = "export" } }
+    val importPicker = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.OpenDocument()
+    ) { uri -> if (uri != null) { pendingUri = uri; backupMode = "import" } }
 
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -51,10 +70,33 @@ fun SettingsScreen(app: App, biometricAvailable: Boolean, onLicenses: () -> Unit
                 "앱 열 때 생체인증", if (biometricAvailable) "지문/얼굴 인식으로 잠금 해제" else "이 기기에서 사용할 수 없음",
                 v.biometricLock && biometricAvailable, enabled = biometricAvailable,
             ) { b -> app.settings.update { it.copy(biometricLock = b) } }
+            Toggle(
+                "접속할 때 생체인증", "새 SSH 세션을 열 때마다 지문/얼굴 확인 (키 사용 보호)",
+                v.keyAuth && biometricAvailable, enabled = biometricAvailable,
+            ) { b -> app.settings.update { it.copy(keyAuth = b) } }
+
+            Section("백업")
+            Text(
+                "호스트, SSH 키, 서버 지문, 명령 목록을 암호로 잠근 파일 하나로 저장합니다. 폰을 바꿀 때 쓰세요. " +
+                    "하드웨어(StrongBox) 키는 칩 밖으로 나올 수 없어서 빠집니다.",
+                style = MaterialTheme.typography.bodySmall,
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                androidx.compose.material3.Button(onClick = { exportPicker.launch("panoterm-backup.ptbak") }) { Text("내보내기") }
+                androidx.compose.material3.OutlinedButton(onClick = { importPicker.launch(arrayOf("*/*")) }) { Text("가져오기") }
+            }
 
             Section("키보드 (K380 등)")
+            TextButton(onClick = onKeyBar) { Text("화면 키 줄 편집 →") }
+            TextButton(onClick = onSnippets) { Text("명령(⚡) 편집 →") }
             Toggle("CapsLock을 Ctrl로", "CapsLock을 누르고 있는 동안 Ctrl로 동작", v.capsAsCtrl) { b ->
                 app.settings.update { it.copy(capsAsCtrl = b) }
+            }
+            Toggle("볼륨 아래 키 = Ctrl", "터미널에서 볼륨 아래 키를 누르면 다음 글자에 Ctrl 적용", v.volumeAsCtrl) { b ->
+                app.settings.update { it.copy(volumeAsCtrl = b) }
+            }
+            Toggle("두 손가락 왼쪽 밀기 = Esc", "Claude 작업 중단할 때 편해요", v.twoFingerEsc) { b ->
+                app.settings.update { it.copy(twoFingerEsc = b) }
             }
             Text("하드웨어 키보드 한/영 전환 키", style = MaterialTheme.typography.bodyLarge)
             Settings.HangulToggle.entries.forEach { t ->
@@ -82,10 +124,76 @@ fun SettingsScreen(app: App, biometricAvailable: Boolean, onLicenses: () -> Unit
                 app.settings.update { it.copy(keepScreenOn = b) }
             }
 
+            Section("업데이트")
+            Text("현재 버전 ${dev.panoterm.BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodyMedium)
+            update?.let { u ->
+                TextButton(onClick = { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(u.url))) }) {
+                    Text("새 버전 ${u.version} 받기 →")
+                }
+            }
+            Toggle("새 버전 자동 확인", "GitHub 릴리스를 하루 두 번까지 확인 (보내는 정보 없음)", v.updateCheck) { b ->
+                app.settings.update { it.copy(updateCheck = b) }
+            }
+            TextButton(onClick = {
+                app.updates.check(force = true)
+                android.widget.Toast.makeText(ctx, "확인 중…", android.widget.Toast.LENGTH_SHORT).show()
+            }) { Text("지금 확인") }
+
             Section("정보")
             TextButton(onClick = onLicenses) { Text("오픈소스 라이선스") }
         }
     }
+
+    val mode = backupMode
+    val uri = pendingUri
+    if (mode != null && uri != null) {
+        BackupPasswordDialog(
+            export = mode == "export",
+            onDismiss = { backupMode = null; pendingUri = null },
+            onConfirm = { pw ->
+                backupMode = null; pendingUri = null
+                val msg = runCatching {
+                    if (mode == "export") {
+                        val (blob, s) = dev.panoterm.data.Backup.export(app.hosts, app.keys, app.knownHosts.path, app.snippets, pw)
+                        ctx.contentResolver.openOutputStream(uri, "wt")!!.use { it.write(blob) }
+                        "백업 완료: 호스트 ${s.hosts}개, 키 ${s.keys}개" + if (s.skippedHardwareKeys > 0) " (하드웨어 키 ${s.skippedHardwareKeys}개 제외)" else ""
+                    } else {
+                        val blob = ctx.contentResolver.openInputStream(uri)!!.use { it.readBytes() }
+                        val s = dev.panoterm.data.Backup.import(blob, pw, app.hosts, app.keys, app.knownHosts, app.snippets)
+                        "가져오기 완료: 호스트 ${s.hosts}개, 키 ${s.keys}개"
+                    }
+                }.getOrElse { "실패: ${it.message}" }
+                pw.fill(' ')
+                android.widget.Toast.makeText(ctx, msg, android.widget.Toast.LENGTH_LONG).show()
+            },
+        )
+    }
+}
+
+@Composable
+private fun BackupPasswordDialog(export: Boolean, onDismiss: () -> Unit, onConfirm: (CharArray) -> Unit) {
+    var p1 by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+    var p2 by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
+    val ok = if (export) p1.length >= 8 && p1 == p2 else p1.isNotEmpty()
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (export) "백업 암호 정하기" else "백업 암호 입력") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (export) Text("이 암호를 잊으면 백업을 열 수 없어요. 8자 이상.", style = MaterialTheme.typography.bodySmall)
+                androidx.compose.material3.OutlinedTextField(
+                    p1, { p1 = it }, label = { Text("암호") }, singleLine = true,
+                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                )
+                if (export) androidx.compose.material3.OutlinedTextField(
+                    p2, { p2 = it }, label = { Text("암호 확인") }, singleLine = true,
+                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
+                )
+            }
+        },
+        confirmButton = { TextButton(enabled = ok, onClick = { onConfirm(p1.toCharArray()) }) { Text("확인") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("취소") } },
+    )
 }
 
 @Composable

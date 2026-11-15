@@ -18,7 +18,7 @@ object Shortcuts {
         return ShortcutInfo.Builder(ctx, "host-${h.id}")
             .setShortLabel(h.title.take(24))
             .setLongLabel("${h.user}@${h.address}".take(40))
-            .setIcon(Icon.createWithResource(ctx, android.R.drawable.ic_menu_manage))
+            .setIcon(Icon.createWithResource(ctx, R.mipmap.ic_launcher))
             .setIntent(intent)
             .setRank(rank)
             .build()

@@ -15,11 +15,18 @@ class Settings(ctx: Context) {
 
     data class Values(
         val biometricLock: Boolean = false,
+        /** Ask for biometrics before opening a new SSH session (using a key). */
+        val keyAuth: Boolean = false,
         val capsAsCtrl: Boolean = false,
+        val volumeAsCtrl: Boolean = false,
         val hangulToggle: HangulToggle = HangulToggle.SHIFT_SPACE,
         val notifyOnBell: Boolean = true,
         val keepScreenOn: Boolean = true,
         val approvalOverlay: Boolean = true,
+        val twoFingerEsc: Boolean = true,
+        val updateCheck: Boolean = true,
+        /** Key ids of the bottom key row, in order. Empty = default. */
+        val keyBar: List<String> = emptyList(),
     )
 
     private val prefs = ctx.getSharedPreferences("settings", Context.MODE_PRIVATE)
@@ -29,23 +36,33 @@ class Settings(ctx: Context) {
 
     private fun load() = Values(
         biometricLock = prefs.getBoolean("biometricLock", false),
+        keyAuth = prefs.getBoolean("keyAuth", false),
         capsAsCtrl = prefs.getBoolean("capsAsCtrl", false),
+        volumeAsCtrl = prefs.getBoolean("volumeAsCtrl", false),
         hangulToggle = runCatching { HangulToggle.valueOf(prefs.getString("hangulToggle", null) ?: "") }
             .getOrDefault(HangulToggle.SHIFT_SPACE),
         notifyOnBell = prefs.getBoolean("notifyOnBell", true),
         keepScreenOn = prefs.getBoolean("keepScreenOn", true),
         approvalOverlay = prefs.getBoolean("approvalOverlay", true),
+        twoFingerEsc = prefs.getBoolean("twoFingerEsc", true),
+        updateCheck = prefs.getBoolean("updateCheck", true),
+        keyBar = prefs.getString("keyBar", "")!!.split(',').filter { it.isNotBlank() },
     )
 
     fun update(f: (Values) -> Values) {
         val v = f(_values.value)
         prefs.edit()
             .putBoolean("biometricLock", v.biometricLock)
+            .putBoolean("keyAuth", v.keyAuth)
             .putBoolean("capsAsCtrl", v.capsAsCtrl)
+            .putBoolean("volumeAsCtrl", v.volumeAsCtrl)
             .putString("hangulToggle", v.hangulToggle.name)
             .putBoolean("notifyOnBell", v.notifyOnBell)
             .putBoolean("keepScreenOn", v.keepScreenOn)
             .putBoolean("approvalOverlay", v.approvalOverlay)
+            .putBoolean("twoFingerEsc", v.twoFingerEsc)
+            .putBoolean("updateCheck", v.updateCheck)
+            .putString("keyBar", v.keyBar.joinToString(","))
             .apply()
         _values.value = v
     }

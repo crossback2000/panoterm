@@ -22,7 +22,7 @@ class SessionService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val count = intent?.getIntExtra(EXTRA_COUNT, 1) ?: 1
         val n = NotificationCompat.Builder(this, Notifier.CH_SESSION)
-            .setSmallIcon(android.R.drawable.stat_sys_upload_done)
+            .setSmallIcon(dev.panoterm.R.drawable.ic_stat_panoterm)
             .setContentTitle("PanoTerm")
             .setContentText("SSH 세션 ${count}개 연결 유지 중")
             .setOngoing(true)

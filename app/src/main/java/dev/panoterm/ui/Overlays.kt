@@ -289,6 +289,38 @@ fun PortsDialog(session: TermSession, onDismiss: () -> Unit) {
     )
 }
 
+// ------------------------------------------------------------------ command palette
+
+@Composable
+fun CommandPalette(items: List<dev.panoterm.data.Snippet>, onDismiss: () -> Unit, onPick: (dev.panoterm.data.Snippet) -> Unit) {
+    var q by remember { mutableStateOf("") }
+    val shown = items.filter { q.isBlank() || it.label.contains(q, true) || it.text.contains(q, true) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("명령") },
+        text = {
+            Column {
+                OutlinedTextField(q, { q = it }, placeholder = { Text("검색") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
+                    shown.forEach { s ->
+                        Column(Modifier.fillMaxWidth().clickable { onPick(s) }.padding(vertical = 8.dp)) {
+                            Text(s.label, color = Color.White, fontSize = 16.sp)
+                            if (s.text != s.label || !s.submit) {
+                                Text(
+                                    s.text.replace('\n', ' ') + if (s.submit) "" else "  (Enter 안 누름)",
+                                    color = Color.Gray, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                    }
+                    if (shown.isEmpty()) Text("없음. 설정 → 명령 편집에서 추가하세요.", color = Color.Gray)
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("닫기") } },
+    )
+}
+
 @Composable
 fun TablesChip(count: Int, onClick: () -> Unit) {
     Box(

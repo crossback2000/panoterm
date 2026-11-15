@@ -1,4 +1,4 @@
-import java.util.Properties
+﻿import java.util.Properties
 
 plugins {
     id("com.android.application")
@@ -23,8 +23,8 @@ android {
         applicationId = "dev.panoterm"
         minSdk = 31
         targetSdk = 35
-        versionCode = 100
-        versionName = "1.0.0"
+        versionCode = 110
+        versionName = "1.1.0"
         ndk { abiFilters += "arm64-v8a" } // Galaxy S25 Ultra
     }
 

@@ -54,6 +54,8 @@ sealed interface Screen {
     data object Keys : Screen
     data object Settings : Screen
     data object Licenses : Screen
+    data object KeyBarEditor : Screen
+    data object Snippets : Screen
     data class EditHost(val id: String?, val prefill: Host? = null) : Screen
     data class Terminal(val sessionId: String) : Screen
 }
@@ -75,6 +77,28 @@ class MainActivity : FragmentActivity() {
 
     val biometricAvailable: Boolean
         get() = BiometricManager.from(this).canAuthenticate(BIOMETRIC_WEAK or DEVICE_CREDENTIAL) == BiometricManager.BIOMETRIC_SUCCESS
+
+    /** Runs [ok] after a biometric check when "접속할 때 생체인증" is on; otherwise immediately. */
+    fun requireAuth(title: String, ok: () -> Unit) {
+        if (!App.instance.settings.current.keyAuth || !biometricAvailable) { ok(); return }
+        BiometricPrompt(this, ContextCompat.getMainExecutor(this), object : BiometricPrompt.AuthenticationCallback() {
+            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) = ok()
+        }).authenticate(
+            BiometricPrompt.PromptInfo.Builder()
+                .setTitle(title)
+                .setAllowedAuthenticators(BIOMETRIC_WEAK or DEVICE_CREDENTIAL)
+                .build()
+        )
+    }
+
+    /** Opens (or resumes) a session for [h], asking for biometrics first if configured. */
+    fun connectHost(h: Host) {
+        if (App.instance.sessions.sessions.value.any { it.host.id == h.id }) {
+            navRequest.value = Screen.Terminal(App.instance.sessions.open(h).id)
+            return
+        }
+        requireAuth("${h.title} 접속") { navRequest.value = Screen.Terminal(App.instance.sessions.open(h).id) }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -126,7 +150,7 @@ class MainActivity : FragmentActivity() {
         }
         i?.getStringExtra(Notifier.EXTRA_HOST)?.let { id ->
             val h = app.hosts.get(id) ?: return@let
-            if (h.keyId != null) navRequest.value = Screen.Terminal(app.sessions.open(h).id)
+            if (h.keyId != null) connectHost(h)
             else navRequest.value = Screen.EditHost(h.id)
         }
     }
@@ -153,6 +177,11 @@ class MainActivity : FragmentActivity() {
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         val t = keyTarget
         if (t != null && t.isAttachedToWindow && !locked.value) {
+            // Volume-down as a sticky Ctrl (optional).
+            if (event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN && App.instance.settings.current.volumeAsCtrl) {
+                if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) t.toggleCtrl()
+                return true
+            }
             when (event.action) {
                 KeyEvent.ACTION_DOWN -> if (t.handleHardwareKey(event)) {
                     consumedDown.add(event.keyCode)
@@ -194,13 +223,17 @@ private fun AppRoot(activity: MainActivity) {
     LaunchedEffect(hosts) { Shortcuts.refresh(activity, hosts) }
 
     BackHandler(enabled = screen != Screen.Hosts) {
-        screen = if (screen == Screen.Licenses) Screen.Settings else Screen.Hosts
+        screen = when (screen) {
+            Screen.Licenses, Screen.KeyBarEditor, Screen.Snippets -> Screen.Settings
+            else -> Screen.Hosts
+        }
     }
 
     when (val s = screen) {
         Screen.Hosts -> HostListScreen(
             app = app,
             onOpenSession = { screen = Screen.Terminal(it.id) },
+            onConnectHost = { activity.connectHost(it) },
             onEdit = { id, prefill -> screen = Screen.EditHost(id, prefill) },
             onKeys = { screen = Screen.Keys },
             onLicenses = { screen = Screen.Settings },
@@ -210,9 +243,13 @@ private fun AppRoot(activity: MainActivity) {
             app = app,
             biometricAvailable = activity.biometricAvailable,
             onLicenses = { screen = Screen.Licenses },
+            onKeyBar = { screen = Screen.KeyBarEditor },
+            onSnippets = { screen = Screen.Snippets },
             onBack = { screen = Screen.Hosts },
         )
         Screen.Licenses -> LicensesScreen(onBack = { screen = Screen.Settings })
+        Screen.KeyBarEditor -> dev.panoterm.ui.KeyBarEditorScreen(app) { screen = Screen.Settings }
+        Screen.Snippets -> dev.panoterm.ui.SnippetsEditorScreen(app) { screen = Screen.Settings }
         is Screen.EditHost -> HostEditScreen(app = app, hostId = s.id, prefill = s.prefill, onDone = { screen = Screen.Hosts })
         is Screen.Terminal -> {
             val session = app.sessions.get(s.sessionId)

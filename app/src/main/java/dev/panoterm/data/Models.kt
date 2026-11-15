@@ -62,10 +62,15 @@ data class SshKeyInfo(
     val publicKey: String,
     val fingerprint: String,
     val createdAt: Long,
+    /** True for non-exportable Keystore/StrongBox keys (signing happens inside the chip). */
+    val hardware: Boolean = false,
+    /** Base64 X.509 SubjectPublicKeyInfo (hardware keys only). */
+    val spki: String = "",
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("id", id).put("name", name).put("type", type)
         .put("publicKey", publicKey).put("fingerprint", fingerprint).put("createdAt", createdAt)
+        .put("hardware", hardware).put("spki", spki)
 
     companion object {
         fun fromJson(o: JSONObject) = SshKeyInfo(
@@ -75,6 +80,8 @@ data class SshKeyInfo(
             publicKey = o.optString("publicKey"),
             fingerprint = o.optString("fingerprint"),
             createdAt = o.optLong("createdAt"),
+            hardware = o.optBoolean("hardware", false),
+            spki = o.optString("spki", ""),
         )
     }
 }

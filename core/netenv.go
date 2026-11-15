@@ -89,7 +89,7 @@ func SetInterfaces(spec string) {
 // (Android does not let Go read the routing table).
 func SetDefaultRouteInterface(name string) {
 	if name != "" {
-		netmon.UpdateLastKnownDefaultRouteInterface(name)
+		setDefaultRoute(name) // netenv_android.go; no-op elsewhere (host tests)
 	}
 }
 

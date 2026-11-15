@@ -37,6 +37,7 @@ class TerminalWebView(ctx: Context) : WebView(ctx) {
         fun onOpenUrl(url: String)
         fun onPrompt(prompt: ApprovalPrompt?)
         fun onTables(count: Int)
+        fun onGesture(name: String)
     }
 
     private val main = Handler(Looper.getMainLooper())
@@ -167,6 +168,9 @@ class TerminalWebView(ctx: Context) : WebView(ctx) {
 
         @JavascriptInterface
         fun onTables(count: Int) = main.post { cb.onTables(count) }
+
+        @JavascriptInterface
+        fun onGesture(name: String) = main.post { cb.onGesture(name) }
 
         @JavascriptInterface
         fun onPrompt(json: String) {

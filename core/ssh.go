@@ -56,13 +56,31 @@ func Connect(n *Node, o *ConnectOptions, v HostKeyVerifier, l SessionListener) (
 	if o == nil {
 		return nil, errors.New("nil options")
 	}
-	if l == nil {
-		return nil, errors.New("nil listener")
-	}
 	signer, err := ssh.ParsePrivateKey(o.PrivateKey)
 	if err != nil {
 		return nil, fmt.Errorf("private key: %w", err)
 	}
+	return openSession(n, o, signer, v, l)
+}
+
+// ConnectHardware authenticates with a non-exportable key held by Android Keystore /
+// StrongBox. publicKeySPKI is the X.509 SubjectPublicKeyInfo of the key; hs signs.
+func ConnectHardware(n *Node, o *ConnectOptions, publicKeySPKI []byte, hs HardwareSigner, v HostKeyVerifier, l SessionListener) (*Session, error) {
+	if o == nil {
+		return nil, errors.New("nil options")
+	}
+	signer, err := newHardwareSigner(publicKeySPKI, hs)
+	if err != nil {
+		return nil, err
+	}
+	return openSession(n, o, signer, v, l)
+}
+
+func openSession(n *Node, o *ConnectOptions, signer ssh.Signer, v HostKeyVerifier, l SessionListener) (*Session, error) {
+	if l == nil {
+		return nil, errors.New("nil listener")
+	}
+	var err error
 	port := o.Port
 	if port <= 0 {
 		port = 22

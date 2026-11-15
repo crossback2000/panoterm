@@ -49,10 +49,12 @@ import dev.panoterm.term.TermSession
 fun HostListScreen(
     app: App,
     onOpenSession: (TermSession) -> Unit,
+    onConnectHost: (Host) -> Unit,
     onEdit: (id: String?, prefill: Host?) -> Unit,
     onKeys: () -> Unit,
     onLicenses: () -> Unit,
 ) {
+    val update by app.updates.available.collectAsState()
     val hosts by app.hosts.hosts.collectAsState()
     val sessions by app.sessions.sessions.collectAsState()
     val tsState by app.tailscale.state.collectAsState()
@@ -81,6 +83,17 @@ fun HostListScreen(
             contentPadding = PaddingValues(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
+            update?.let { u ->
+                item {
+                    Card(Modifier.fillMaxWidth()) {
+                        Row(Modifier.padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text("새 버전 ${u.version}이 나왔어요", Modifier.weight(1f))
+                            TextButton(onClick = { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(u.url))) }) { Text("받기") }
+                            TextButton(onClick = { app.updates.dismiss() }) { Text("나중에") }
+                        }
+                    }
+                }
+            }
             item {
                 TailscaleCard(
                     state = tsState,
@@ -114,7 +127,7 @@ fun HostListScreen(
                             Toast.makeText(ctx, "SSH 키를 먼저 지정하세요", Toast.LENGTH_SHORT).show()
                             onEdit(h.id, null)
                         } else {
-                            onOpenSession(app.sessions.open(h))
+                            onConnectHost(h)
                         }
                     },
                     onEdit = { onEdit(h.id, null) },

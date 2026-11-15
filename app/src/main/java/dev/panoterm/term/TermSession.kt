@@ -194,19 +194,24 @@ class TermSession(host0: Host, private val app: App) {
                     waitForTailscale()
                     app.tailscale.nodeOrNull() ?: throw IllegalStateException("Tailscale이 시작되지 않았습니다")
                 } else null
-                pem = app.keys.privateKey(keyId)
+                val key = app.keys.get(keyId) ?: throw IllegalStateException("SSH 키를 찾을 수 없습니다 (삭제되었나요?)")
+                if (!key.hardware) pem = app.keys.privateKey(keyId)
                 val opts = ConnectOptions().apply {
                     setHost(h.address.trim())
                     setPort(h.port.toLong())
                     setUser(h.user.trim())
-                    setPrivateKey(pem)
+                    if (pem != null) setPrivateKey(pem)
                     setUseTailnet(h.useTailnet)
                     setCols(cols.toLong())
                     setRows(rows.toLong())
                     setCommand(startupCommand(h))
                     setEnv("MOBILE_TERM=1\nLANG=C.UTF-8")
                 }
-                val s = Core.connect(node, opts, verifier, listener(gen))
+                val s = if (key.hardware) {
+                    Core.connectHardware(node, opts, app.keys.spki(key), app.keys.hardwareSigner(key), verifier, listener(gen))
+                } else {
+                    Core.connect(node, opts, verifier, listener(gen))
+                }
                 if (gen != generation) { s.close(); return@thread }
                 go = s
                 wantConnected = true

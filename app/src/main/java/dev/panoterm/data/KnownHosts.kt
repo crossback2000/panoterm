@@ -20,6 +20,20 @@ class KnownHosts(private val file: File) {
         writeAtomic(file, kept.joinToString("") { "${it.first} ${it.second} ${it.third}\n" }.toByteArray())
     }
 
+    /** Adds entries from a known_hosts text (backup restore); existing hosts are kept. */
+    @Synchronized
+    fun merge(text: String) {
+        val cur = read()
+        val have = cur.map { it.first }.toSet()
+        val add = text.lines().mapNotNull { line ->
+            val p = line.trim().split(" ")
+            if (p.size >= 3 && p[0] !in have) Triple(p[0], p[1], p[2]) else null
+        }
+        if (add.isNotEmpty()) writeAtomic(file, (cur + add).joinToString("") { "${it.first} ${it.second} ${it.third}\n" }.toByteArray())
+    }
+
+    val path: File get() = file
+
     private fun read(): List<Triple<String, String, String>> {
         if (!file.exists()) return emptyList()
         return file.readLines().mapNotNull { line ->

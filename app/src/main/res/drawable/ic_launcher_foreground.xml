@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- PanoTerm: a wide (panorama) screen with a prompt and table rows. Safe zone 21..87 of 108. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- frame -->
+    <path
+        android:fillColor="#2DD4BF"
+        android:pathData="M28,36 L80,36 Q86,36 86,42 L86,66 Q86,72 80,72 L28,72 Q22,72 22,66 L22,42 Q22,36 28,36 Z" />
+    <!-- screen -->
+    <path
+        android:fillColor="#0B1220"
+        android:pathData="M29,39.5 L79,39.5 Q82.5,39.5 82.5,43 L82.5,65 Q82.5,68.5 79,68.5 L29,68.5 Q25.5,68.5 25.5,65 L25.5,43 Q25.5,39.5 29,39.5 Z" />
+    <!-- prompt > -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M31,47 L37.5,54 L31,61" />
+    <!-- cursor _ -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="3.2"
+        android:strokeLineCap="round"
+        android:pathData="M41,61 L49,61" />
+    <!-- table rows -->
+    <path
+        android:strokeColor="#2DD4BF"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:pathData="M55,47 L77,47 M55,54 L77,54 M55,61 L77,61 M63,45 L63,63" />
+</vector>

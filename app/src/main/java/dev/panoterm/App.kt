@@ -18,6 +18,8 @@ class App : Application() {
     lateinit var settings: Settings
     lateinit var tailscale: TailscaleManager
     lateinit var sessions: SessionManager
+    lateinit var snippets: dev.panoterm.data.Snippets
+    lateinit var updates: dev.panoterm.net.UpdateChecker
 
     /** True while any activity is started (visible). */
     @Volatile var isForeground = false
@@ -34,6 +36,9 @@ class App : Application() {
         keys = KeyRepository(File(filesDir, "keys"))
         knownHosts = KnownHosts(File(filesDir, "known_hosts"))
         settings = Settings(this)
+        snippets = dev.panoterm.data.Snippets(this)
+        updates = dev.panoterm.net.UpdateChecker(this)
+        if (settings.current.updateCheck) updates.check()
         tailscale = TailscaleManager(this)
         sessions = SessionManager(this)
         tailscale.onNetworkAvailable = { sessions.onNetworkAvailable() }

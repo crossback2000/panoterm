@@ -6,8 +6,12 @@ package core
 
 import (
 	"bytes"
+	"crypto/ecdsa"
 	"crypto/ed25519"
+	"crypto/elliptic"
 	"crypto/rand"
+	"crypto/sha256"
+	"crypto/x509"
 	"encoding/binary"
 	"encoding/pem"
 	"io"
@@ -411,6 +415,35 @@ func TestWrongKeyRejected(t *testing.T) {
 	if _, err := connect(t, ts, bad, &verifier{accept: true}, newCollector()); err == nil {
 		t.Fatal("unauthorized key was accepted")
 	}
+}
+
+// fakeHW mimics the Kotlin Keystore signer with a software ECDSA key.
+type fakeHW struct{ k *ecdsa.PrivateKey }
+
+func (f fakeHW) SignSHA256(data []byte) ([]byte, error) {
+	h := sha256.Sum256(data)
+	return ecdsa.SignASN1(rand.Reader, f.k, h[:])
+}
+
+func TestHardwareKeyConnect(t *testing.T) {
+	k, _ := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	spki, _ := x509.MarshalPKIXPublicKey(&k.PublicKey)
+	kp, err := HardwarePublicKey(spki, "strongbox")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.HasPrefix(kp.PublicKey, "ecdsa-sha2-nistp256 ") {
+		t.Fatalf("pub line %q", kp.PublicKey)
+	}
+	ts := startServer(t, pub(t, kp))
+	h, p := splitHostPort(t, ts.addr)
+	c := newCollector()
+	s, err := ConnectHardware(nil, &ConnectOptions{Host: h, Port: p, User: "me", Cols: 80, Rows: 24}, spki, fakeHW{k}, &verifier{accept: true}, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	c.waitFor(t, "ready")
+	s.Close()
 }
 
 func TestSetInterfaces(t *testing.T) {

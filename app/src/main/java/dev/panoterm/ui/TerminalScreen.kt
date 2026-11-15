@@ -15,6 +15,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -91,7 +92,14 @@ fun TerminalScreen(
     var composeOpen by remember { mutableStateOf(false) }
     var portsOpen by remember { mutableStateOf(false) }
     var sessionMenu by remember { mutableStateOf(false) }
+    var menuOpen by remember { mutableStateOf(false) }
+    var paletteOpen by remember { mutableStateOf(false) }
     val history = remember { PromptHistory(ctx) }
+    val snippets by app.snippets.items.collectAsState()
+
+    @Composable
+    fun MenuItem(label: String, action: () -> Unit) =
+        DropdownMenuItem(text = { Text(label) }, onClick = { menuOpen = false; action() })
 
     val webView = remember(session.id) { TerminalWebView(ctx) }
     val input = remember(session.id) { TerminalInputView(ctx) }
@@ -163,6 +171,7 @@ fun TerminalScreen(
             cs && e.keyCode == KeyEvent.KEYCODE_R -> { overlay = Overlay.READER; true }
             cs && e.keyCode == KeyEvent.KEYCODE_E -> { composeOpen = true; true }
             cs && e.keyCode == KeyEvent.KEYCODE_W -> { cycleWidth(); true }
+            cs && e.keyCode == KeyEvent.KEYCODE_P -> { paletteOpen = true; true }
             ca && (e.keyCode == KeyEvent.KEYCODE_EQUALS || e.keyCode == KeyEvent.KEYCODE_PLUS || e.keyCode == KeyEvent.KEYCODE_NUMPAD_ADD) -> { changeFont(+1); true }
             ca && (e.keyCode == KeyEvent.KEYCODE_MINUS || e.keyCode == KeyEvent.KEYCODE_NUMPAD_SUBTRACT) -> { changeFont(-1); true }
             ca && e.keyCode == KeyEvent.KEYCODE_T -> { showTmux = !showTmux; true }
@@ -202,6 +211,14 @@ fun TerminalScreen(
             override fun onOpenUrl(url: String) { openUrl(url) }
             override fun onPrompt(p: ApprovalPrompt?) { prompt = p }
             override fun onTables(count: Int) { tableCount = count }
+            override fun onGesture(name: String) {
+                // Two-finger swipe left = Esc (interrupt Claude).
+                if (name == "swipe-left" && app.settings.current.twoFingerEsc) {
+                    session.send("\u001b")
+                    view.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM)
+                    Toast.makeText(ctx, "Esc", Toast.LENGTH_SHORT).show()
+                }
+            }
         })
         session.attach { bytes -> main.post { webView.write(bytes) } }
         activity.keyTarget = input
@@ -234,7 +251,7 @@ fun TerminalScreen(
                 Modifier.fillMaxWidth().background(Color(0xFF15151A)).height(40.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                SmallButton("←", onBack)
+                IconText("←", onBack)
                 Box(
                     Modifier.size(8.dp).background(
                         when (state) {
@@ -244,7 +261,8 @@ fun TerminalScreen(
                         }
                     )
                 )
-                Box(Modifier.widthIn(max = 140.dp)) {
+                // Title takes whatever is left; the action buttons always stay visible.
+                Box(Modifier.weight(1f)) {
                     Text(
                         " ${session.host.title}" + if (sessions.size > 1) " ▾" else "",
                         color = Color.White, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -261,20 +279,27 @@ fun TerminalScreen(
                         }
                     }
                 }
-                Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
-                    SmallButton(if (fixedCols == 0) "↔" else "↔$fixedCols") { cycleWidth() }
-                    SmallButton("▦") { openLens() }
-                    SmallButton("📖") { overlay = Overlay.READER }
-                    SmallButton("✎") { composeOpen = !composeOpen }
-                    SmallButton(if (hangulOn) "한" else "A") { input.toggleHangul() }
-                    SmallButton("🖼") { imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
-                    SmallButton("⇄") { portsOpen = true }
-                    SmallButton("A−") { changeFont(-1) }
-                    SmallButton("A+") { changeFont(+1) }
-                    SmallButton("📋") { paste() }
-                    SmallButton(if (showTmux) "tmux▾" else "tmux▸") { showTmux = !showTmux }
-                    SmallButton("⌨") { input.showKeyboard() }
-                    SmallButton("✕") { app.sessions.close(session); onBack() }
+                // Frequently used actions stay visible; everything else lives in the ⋮ menu.
+                Row(horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                    IconText(if (fixedCols == 0) "↔" else "↔$fixedCols") { cycleWidth() }
+                    IconText("▦") { openLens() }
+                    IconText("📖") { overlay = Overlay.READER }
+                    IconText("✎") { composeOpen = !composeOpen }
+                    IconText("⚡") { paletteOpen = true }
+                    IconText(if (hangulOn) "한" else "A") { input.toggleHangul() }
+                    Box {
+                        IconText("⋮") { menuOpen = true }
+                        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                            MenuItem("🖼  이미지 보내기") { imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+                            MenuItem("⇄  포트 미리보기") { portsOpen = true }
+                            MenuItem("📋  붙여넣기") { paste() }
+                            MenuItem("A+  글자 크게") { changeFont(+1) }
+                            MenuItem("A−  글자 작게") { changeFont(-1) }
+                            MenuItem(if (showTmux) "tmux 키 줄 숨기기" else "tmux 키 줄 보이기") { showTmux = !showTmux }
+                            MenuItem("⌨  키보드 열기") { input.showKeyboard() }
+                            MenuItem("✕  연결 끊고 닫기") { app.sessions.close(session); onBack() }
+                        }
+                    }
                 }
             }
 
@@ -324,12 +349,14 @@ fun TerminalScreen(
                     onClose = { composeOpen = false; input.requestFocus() },
                 )
             } else {
-                KeyBar(showTmux = showTmux, ctrlOn = ctrlOn, altOn = altOn) { k ->
+                KeyBar(keys = keysFor(settings.keyBar), showTmux = showTmux, ctrlOn = ctrlOn, altOn = altOn) { k ->
                     when (k) {
                         is BarKey.Text -> input.sendText(k.text)
                         is BarKey.Raw -> input.sendRaw(k.bytes)
                         is BarKey.Code -> input.sendKeyCode(k.keyCode, k.shift)
                         is BarKey.Toggle -> if (k.ctrl) input.toggleCtrl() else input.toggleAlt()
+                        is BarKey.Palette -> paletteOpen = true
+                        is BarKey.Pad -> {}
                     }
                 }
             }
@@ -346,6 +373,24 @@ fun TerminalScreen(
     }
 
     if (portsOpen) PortsDialog(session) { portsOpen = false }
+    if (paletteOpen) {
+        CommandPalette(snippets, onDismiss = { paletteOpen = false }) { s ->
+            paletteOpen = false
+            session.paste(s.text)
+            if (s.submit) main.postDelayed({ session.send("\r") }, 60)
+        }
+    }
+}
+
+@Composable
+private fun IconText(label: String, onClick: () -> Unit) {
+    TextButton(
+        onClick = onClick,
+        modifier = Modifier.height(40.dp).widthIn(min = 34.dp),
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp),
+    ) {
+        Text(label, color = MaterialTheme.colorScheme.primary, fontSize = 15.sp, maxLines = 1)
+    }
 }
 
 /** Tap handler that never takes focus (keeps the soft keyboard attached to the terminal). */

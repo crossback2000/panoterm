@@ -85,9 +85,10 @@ function start() {
     const a = e.touches[0], b = e.touches[1];
     return Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
   }
+  function centerX(e) { return (e.touches[0].clientX + e.touches[1].clientX) / 2; }
   wrap.addEventListener('touchstart', function (e) {
     if (e.touches.length === 2) {
-      pinch = { d: dist(e), fs: fontSize, s: 1 };
+      pinch = { d: dist(e), fs: fontSize, s: 1, cx0: centerX(e), cx: centerX(e) };
       pan = null;
       e.preventDefault(); e.stopPropagation();
     } else if (e.touches.length === 1) {
@@ -98,8 +99,10 @@ function start() {
   wrap.addEventListener('touchmove', function (e) {
     if (pinch && e.touches.length === 2) {
       pinch.s = Math.max(0.4, Math.min(3, dist(e) / pinch.d));
+      pinch.cx = centerX(e);
+      // Only scale visibly when it is really a pinch (not a two-finger swipe).
       el.style.transformOrigin = '0 0';
-      el.style.transform = 'scale(' + pinch.s + ')';
+      el.style.transform = Math.abs(pinch.s - 1) > 0.08 ? 'scale(' + pinch.s + ')' : '';
       e.preventDefault(); e.stopPropagation();
       return;
     }
@@ -116,9 +119,16 @@ function start() {
   wrap.addEventListener('touchend', function (e) {
     if (pinch && e.touches.length < 2) {
       el.style.transform = '';
-      const n = Math.max(8, Math.min(32, Math.round(pinch.fs * pinch.s)));
+      const p = pinch;
       pinch = null;
-      if (n !== fontSize) { window.setFontSize(n); Bridge.onFontSize(n); }
+      const dx = p.cx - p.cx0;
+      if (Math.abs(p.s - 1) <= 0.08 && Math.abs(dx) > 70) {
+        // Two-finger horizontal swipe (no pinch): gesture.
+        Bridge.onGesture(dx < 0 ? 'swipe-left' : 'swipe-right');
+      } else {
+        const n = Math.max(8, Math.min(32, Math.round(p.fs * p.s)));
+        if (n !== fontSize) { window.setFontSize(n); Bridge.onFontSize(n); }
+      }
       e.stopPropagation();
     }
     if (e.touches.length === 0) pan = null;

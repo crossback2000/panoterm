@@ -29,6 +29,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -36,62 +37,91 @@ import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 sealed interface BarKey {
+    val id: String
     val label: String
 
-    /** Raw bytes. A single printable character honours sticky Ctrl/Alt. */
-    data class Text(override val label: String, val text: String) : BarKey
+    /** Text. A single printable character honours sticky Ctrl/Alt. */
+    data class Text(override val id: String, override val label: String, val text: String) : BarKey
 
     /** Raw control sequence; ignores sticky modifiers. */
-    data class Raw(override val label: String, val bytes: String) : BarKey
+    data class Raw(override val id: String, override val label: String, val bytes: String) : BarKey
 
     /** Special key encoded by KeyEncoder (honours sticky modifiers and cursor mode). */
-    data class Code(override val label: String, val keyCode: Int, val shift: Boolean = false, val repeat: Boolean = false) : BarKey
+    data class Code(override val id: String, override val label: String, val keyCode: Int, val shift: Boolean = false, val repeat: Boolean = false) : BarKey
 
-    data class Toggle(override val label: String, val ctrl: Boolean) : BarKey
+    data class Toggle(override val id: String, override val label: String, val ctrl: Boolean) : BarKey
+
+    /** Cursor pad: drag left/right (or up/down) to send arrow keys. */
+    data class Pad(override val id: String, override val label: String) : BarKey
+
+    /** Opens the command palette. */
+    data class Palette(override val id: String, override val label: String) : BarKey
 }
 
-/** Claude Code row (bottom). ⏎ Enter is pinned at the right edge. */
-val ClaudeKeys = listOf(
-    BarKey.Code("Esc", KeyEvent.KEYCODE_ESCAPE),
-    BarKey.Code("⇧Tab", KeyEvent.KEYCODE_TAB, shift = true),
-    BarKey.Raw("Esc²", "\u001b\u001b"),
-    BarKey.Raw("^C", "\u0003"),
-    BarKey.Code("Tab", KeyEvent.KEYCODE_TAB),
-    BarKey.Toggle("Ctrl", ctrl = true),
-    BarKey.Toggle("Alt", ctrl = false),
-    BarKey.Code("←", KeyEvent.KEYCODE_DPAD_LEFT, repeat = true),
-    BarKey.Code("↓", KeyEvent.KEYCODE_DPAD_DOWN, repeat = true),
-    BarKey.Code("↑", KeyEvent.KEYCODE_DPAD_UP, repeat = true),
-    BarKey.Code("→", KeyEvent.KEYCODE_DPAD_RIGHT, repeat = true),
-    BarKey.Text("/", "/"),
-    BarKey.Text("@", "@"),
-    BarKey.Text("|", "|"),
-    BarKey.Text("~", "~"),
-    BarKey.Text("-", "-"),
-    BarKey.Code("⌫", KeyEvent.KEYCODE_DEL, repeat = true),
-    BarKey.Raw("⇧⏎ 줄바꿈", "\u001b\r"),
+/** Every key that can be placed on the bottom row (order here = order in the editor). */
+val ALL_KEYS: List<BarKey> = listOf(
+    BarKey.Code("esc", "Esc", KeyEvent.KEYCODE_ESCAPE),
+    BarKey.Code("stab", "⇧Tab", KeyEvent.KEYCODE_TAB, shift = true),
+    BarKey.Raw("esc2", "Esc²", "\u001b\u001b"),
+    BarKey.Raw("ctrlc", "^C", "\u0003"),
+    BarKey.Code("tab", "Tab", KeyEvent.KEYCODE_TAB),
+    BarKey.Toggle("ctrl", "Ctrl", ctrl = true),
+    BarKey.Toggle("alt", "Alt", ctrl = false),
+    BarKey.Pad("pad", "◀ ▶"),
+    BarKey.Code("left", "←", KeyEvent.KEYCODE_DPAD_LEFT, repeat = true),
+    BarKey.Code("down", "↓", KeyEvent.KEYCODE_DPAD_DOWN, repeat = true),
+    BarKey.Code("up", "↑", KeyEvent.KEYCODE_DPAD_UP, repeat = true),
+    BarKey.Code("right", "→", KeyEvent.KEYCODE_DPAD_RIGHT, repeat = true),
+    BarKey.Palette("palette", "⚡"),
+    BarKey.Text("slash", "/", "/"),
+    BarKey.Text("at", "@", "@"),
+    BarKey.Text("pipe", "|", "|"),
+    BarKey.Text("tilde", "~", "~"),
+    BarKey.Text("dash", "-", "-"),
+    BarKey.Text("bang", "!", "!"),
+    BarKey.Text("hash", "#", "#"),
+    BarKey.Code("bs", "⌫", KeyEvent.KEYCODE_DEL, repeat = true),
+    BarKey.Code("home", "Home", KeyEvent.KEYCODE_MOVE_HOME),
+    BarKey.Code("end", "End", KeyEvent.KEYCODE_MOVE_END),
+    BarKey.Raw("ctrlr", "^R", "\u0012"),
+    BarKey.Raw("ctrlo", "^O", "\u000f"),
+    BarKey.Raw("ctrld", "^D", "\u0004"),
+    BarKey.Raw("nl", "⇧⏎ 줄바꿈", "\u001b\r"),
 )
+
+val DEFAULT_KEY_IDS = listOf(
+    "esc", "stab", "esc2", "ctrlc", "tab", "ctrl", "alt", "pad",
+    "left", "down", "up", "right", "palette", "slash", "at", "pipe", "tilde", "dash", "bs", "nl",
+)
+
+fun keysFor(ids: List<String>): List<BarKey> {
+    val byId = ALL_KEYS.associateBy { it.id }
+    return (ids.ifEmpty { DEFAULT_KEY_IDS }).mapNotNull { byId[it] }
+}
 
 /** tmux row (top, optional). Assumes the default prefix Ctrl+B. */
 val TmuxKeys = listOf(
-    BarKey.Raw("^B", "\u0002"),
-    BarKey.Raw("새 창", "\u0002c"),
-    BarKey.Raw("다음", "\u0002n"),
-    BarKey.Raw("이전", "\u0002p"),
-    BarKey.Raw("확대", "\u0002z"),
-    BarKey.Raw("스크롤", "\u0002["),
-    BarKey.Raw("분리", "\u0002d"),
-    BarKey.Code("PgUp", KeyEvent.KEYCODE_PAGE_UP, repeat = true),
-    BarKey.Code("PgDn", KeyEvent.KEYCODE_PAGE_DOWN, repeat = true),
-    BarKey.Text("q", "q"),
+    BarKey.Raw("t_pre", "^B", "\u0002"),
+    BarKey.Raw("t_new", "새 창", "\u0002c"),
+    BarKey.Raw("t_next", "다음", "\u0002n"),
+    BarKey.Raw("t_prev", "이전", "\u0002p"),
+    BarKey.Raw("t_zoom", "확대", "\u0002z"),
+    BarKey.Raw("t_copy", "스크롤", "\u0002["),
+    BarKey.Raw("t_det", "분리", "\u0002d"),
+    BarKey.Code("t_pgup", "PgUp", KeyEvent.KEYCODE_PAGE_UP, repeat = true),
+    BarKey.Code("t_pgdn", "PgDn", KeyEvent.KEYCODE_PAGE_DOWN, repeat = true),
+    BarKey.Text("t_q", "q", "q"),
 )
 
-val EnterKey = BarKey.Raw("⏎ Enter", "\r")
+val EnterKey = BarKey.Raw("enter", "⏎ Enter", "\r")
 
+/** What a key press means for the terminal. Pad drags arrive as Code keys. */
 @Composable
 fun KeyBar(
+    keys: List<BarKey>,
     showTmux: Boolean,
     ctrlOn: Boolean,
     altOn: Boolean,
@@ -105,13 +135,66 @@ fun KeyBar(
         }
         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
             Row(Modifier.weight(1f).horizontalScroll(rememberScrollState())) {
-                ClaudeKeys.forEach { k ->
+                keys.forEach { k ->
                     val active = k is BarKey.Toggle && (if (k.ctrl) ctrlOn else altOn)
-                    KeyCap(k, active = active, onKey = onKey)
+                    if (k is BarKey.Pad) CursorPad(k, onKey) else KeyCap(k, active = active, onKey = onKey)
                 }
             }
             KeyCap(EnterKey, active = false, wide = true, accent = true, onKey = onKey)
         }
+    }
+}
+
+private val ARROW_LEFT = BarKey.Code("left", "←", KeyEvent.KEYCODE_DPAD_LEFT)
+private val ARROW_RIGHT = BarKey.Code("right", "→", KeyEvent.KEYCODE_DPAD_RIGHT)
+private val ARROW_UP = BarKey.Code("up", "↑", KeyEvent.KEYCODE_DPAD_UP)
+private val ARROW_DOWN = BarKey.Code("down", "↓", KeyEvent.KEYCODE_DPAD_DOWN)
+
+/** Drag on this key to move the cursor: every ~18dp of travel sends one arrow key. */
+@Composable
+private fun CursorPad(k: BarKey, onKey: (BarKey) -> Unit) {
+    val view = LocalView.current
+    val fire by rememberUpdatedState(onKey)
+    var pressed by remember { mutableStateOf(false) }
+    Box(
+        Modifier
+            .padding(horizontal = 2.dp, vertical = 2.dp)
+            .height(42.dp)
+            .widthIn(min = 72.dp)
+            .clip(RoundedCornerShape(7.dp))
+            .background(if (pressed) Color(0xFF5A5A6A) else Color(0xFF263238))
+            .pointerInput(Unit) {
+                val step = 18.dp.toPx()
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    pressed = true
+                    var accX = 0f
+                    var accY = 0f
+                    while (true) {
+                        val ev = awaitPointerEvent()
+                        val ch = ev.changes.firstOrNull { it.id == down.id } ?: break
+                        if (!ch.pressed) break
+                        val d = ch.positionChange()
+                        ch.consume() // keep the row from scrolling while using the pad
+                        accX += d.x; accY += d.y
+                        while (abs(accX) >= step) {
+                            fire(if (accX > 0) ARROW_RIGHT else ARROW_LEFT)
+                            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                            accX -= if (accX > 0) step else -step
+                        }
+                        while (abs(accY) >= step * 1.5f) {
+                            fire(if (accY > 0) ARROW_DOWN else ARROW_UP)
+                            view.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
+                            accY -= if (accY > 0) step * 1.5f else -step * 1.5f
+                        }
+                    }
+                    pressed = false
+                }
+            }
+            .padding(horizontal = 10.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(k.label, color = Color(0xFF80CBC4), fontSize = 14.sp, maxLines = 1)
     }
 }
 
@@ -121,7 +204,7 @@ fun KeyBar(
  * Fires on release; repeat keys auto-repeat while held. Scrolling the row cancels.
  */
 @Composable
-private fun KeyCap(k: BarKey, active: Boolean, wide: Boolean = false, accent: Boolean = false, onKey: (BarKey) -> Unit) {
+fun KeyCap(k: BarKey, active: Boolean, wide: Boolean = false, accent: Boolean = false, onKey: (BarKey) -> Unit) {
     val scope = rememberCoroutineScope()
     val view = LocalView.current
     val fire by rememberUpdatedState(onKey)

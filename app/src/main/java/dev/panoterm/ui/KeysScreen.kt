@@ -4,6 +4,7 @@ import android.content.Intent
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -94,7 +95,7 @@ fun KeysScreen(app: App, onBack: () -> Unit) {
         ) {
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = { showGenerate = true }) { Text("Ed25519 생성") }
+                    Button(onClick = { showGenerate = true }) { Text("키 만들기") }
                     OutlinedButton(onClick = { picker.launch(arrayOf("*/*")) }) { Text("파일") }
                     OutlinedButton(onClick = { showPaste = true }) { Text("붙여넣기") }
                 }
@@ -108,7 +109,7 @@ fun KeysScreen(app: App, onBack: () -> Unit) {
             items(keys, key = { it.id }) { k ->
                 Card(Modifier.fillMaxWidth()) {
                     Column(Modifier.padding(12.dp)) {
-                        Text(k.name, style = MaterialTheme.typography.titleMedium)
+                        Text(k.name + if (k.hardware) "  🔒" else "", style = MaterialTheme.typography.titleMedium)
                         Text("${k.type}  ${k.fingerprint}", style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
                         Text(k.publicKey, fontSize = 11.sp, fontFamily = FontFamily.Monospace, maxLines = 3)
                         Row {
@@ -130,13 +131,32 @@ fun KeysScreen(app: App, onBack: () -> Unit) {
 
     if (showGenerate) {
         var name by remember { mutableStateOf("s25-ultra") }
+        var hardware by remember { mutableStateOf(false) }
         AlertDialog(
             onDismissRequest = { showGenerate = false },
-            title = { Text("Ed25519 키 생성") },
-            text = { OutlinedTextField(name, { name = it }, label = { Text("이름 (공개키 주석)") }, singleLine = true) },
+            title = { Text("SSH 키 만들기") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(name, { name = it }, label = { Text("이름 (공개키 주석)") }, singleLine = true)
+                    Row(Modifier.fillMaxWidth().clickable { hardware = false }, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        androidx.compose.material3.RadioButton(selected = !hardware, onClick = { hardware = false })
+                        Column {
+                            Text("Ed25519 (추천)")
+                            Text("백업 파일로 옮길 수 있어요", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                    Row(Modifier.fillMaxWidth().clickable { hardware = true }, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        androidx.compose.material3.RadioButton(selected = hardware, onClick = { hardware = true })
+                        Column {
+                            Text("하드웨어 키 (StrongBox, ECDSA)")
+                            Text("키가 보안 칩 밖으로 절대 안 나와요. 대신 백업이 안 되고 폰을 바꾸면 새로 만들어야 해요.", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+            },
             confirmButton = {
                 TextButton(onClick = {
-                    runCatching { app.keys.generateEd25519(name.trim()) }
+                    runCatching { if (hardware) app.keys.generateHardware(name.trim()) else app.keys.generateEd25519(name.trim()) }
                         .onSuccess { toast("생성했습니다. 공개키를 서버에 등록하세요.") }
                         .onFailure { toast("생성 실패: ${it.message}") }
                     showGenerate = false
