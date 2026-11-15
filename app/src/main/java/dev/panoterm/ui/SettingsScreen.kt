@@ -122,11 +122,21 @@ fun SettingsScreen(
             Toggle("터미널에서 화면 켜짐 유지", null, v.keepScreenOn) { b ->
                 app.settings.update { it.copy(keepScreenOn = b) }
             }
-            Toggle(
-                "GPU 렌더링 (실험적)",
-                "출력이 많을 때 더 부드러워요. 글자가 깨져 보이면 다시 끄세요. 터미널을 다시 열면 적용됩니다.",
-                v.gpuRender,
-            ) { b -> app.settings.update { it.copy(gpuRender = b) } }
+            Text("화면 그리기 방식 (터미널을 다시 열면 적용)", style = MaterialTheme.typography.bodyLarge)
+            listOf(
+                "auto" to "자동 (추천) — GPU가 있으면 WebGL, 아니면 Canvas",
+                "webgl" to "WebGL — 가장 빠름",
+                "canvas" to "Canvas — 빠르고 어느 폰에서나 잘 나와요",
+                "dom" to "DOM — 느리지만 가장 호환성이 좋아요",
+            ).forEach { (id, label) ->
+                Row(
+                    Modifier.fillMaxWidth().clickable { app.settings.update { it.copy(renderer = id) } },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    RadioButton(selected = v.renderer == id, onClick = { app.settings.update { it.copy(renderer = id) } })
+                    Text(label, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
 
             Section("업데이트")
             Text("현재 버전 ${dev.panoterm.BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodyMedium)

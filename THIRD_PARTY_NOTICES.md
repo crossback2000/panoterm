@@ -16,6 +16,7 @@ PanoTerm 자체는 [MIT 라이선스](LICENSE)입니다. 아래는 PanoTerm에 �
 | `@xterm/addon-unicode11` | 0.8.0 | MIT | © 2019 The xterm.js authors | `assets/term/addon-unicode11.js` | `xterm-addon-unicode11.LICENSE.txt` |
 | `@xterm/addon-web-links` | 0.11.0 | MIT | © 2017 The xterm.js authors | `assets/term/addon-web-links.js` | `xterm-addon-web-links.LICENSE.txt` |
 | `@xterm/addon-webgl` | 0.18.0 | MIT | © 2018 The xterm.js authors | `assets/term/addon-webgl.js` | `xterm-addon-webgl.LICENSE.txt` |
+| `@xterm/addon-canvas` | 0.7.0 | MIT | © 2017 The xterm.js authors | `assets/term/addon-canvas.js` | `xterm-addon-canvas.LICENSE.txt` |
 
 **D2Coding(OFL) 조건 요약**: 소프트웨어와 함께 번들·재배포 가능, 라이선스 전문을 함께 배포해야 함, **폰트 단독 판매 금지**, 폰트를 수정하면 "D2Coding" 이름을 쓸 수 없음 → 원본 파일을 수정 없이 사용 중.
 

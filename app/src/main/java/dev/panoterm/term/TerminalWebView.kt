@@ -76,7 +76,7 @@ class TerminalWebView(ctx: Context) : WebView(ctx) {
         setBackgroundColor(Color.BLACK)
     }
 
-    fun bind(fontSize: Int, fixedCols: Int, gpu: Boolean, cb: Callbacks) {
+    fun bind(fontSize: Int, fixedCols: Int, renderer: String, cb: Callbacks) {
         addJavascriptInterface(Bridge(cb), "Bridge")
         setOnTouchListener { _, e ->
             when (e.actionMasked) {
@@ -86,9 +86,13 @@ class TerminalWebView(ctx: Context) : WebView(ctx) {
             }
             false
         }
-        val debug = if (dev.panoterm.BuildConfig.DEBUG) "&debug=1" else ""
-        val webgl = if (gpu) "&webgl=1" else ""
-        loadUrl("file:///android_asset/term/index.html#fs=$fontSize&cols=$fixedCols$webgl$debug")
+        // Debug builds: console diagnostics; scroll benchmark only with `adb shell setprop debug.panoterm.bench 1`.
+        val bench = runCatching {
+            Class.forName("android.os.SystemProperties").getMethod("get", String::class.java)
+                .invoke(null, "debug.panoterm.bench") == "1"
+        }.getOrDefault(false)
+        val debug = if (dev.panoterm.BuildConfig.DEBUG) "&debug=1" + (if (bench) "&bench=1" else "") else ""
+        loadUrl("file:///android_asset/term/index.html#fs=$fontSize&cols=$fixedCols&r=$renderer$debug")
     }
 
     /** Main thread only. Output is coalesced and flushed once per frame. */

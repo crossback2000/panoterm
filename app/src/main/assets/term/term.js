@@ -47,17 +47,42 @@ function start() {
   const el = document.getElementById('t');
   term.open(el);
 
-  // Optional GPU renderer (settings → "GPU 렌더링"). Off by default: some GPUs/drivers
-  // clip glyphs in the WebGL texture atlas. Falls back to DOM on context loss.
+  // Renderer (settings → 화면 그리기 방식):
+  //   canvas — 2D canvas with a glyph cache: far faster than DOM, works on all GPUs (default)
+  //   webgl  — fastest on a real GPU, but some drivers clip glyphs in the texture atlas
+  //   dom    — slowest, most compatible
+  //   auto   — WebGL on a hardware GPU, Canvas on software GL (SwiftShader etc. clip glyphs)
+  // Measured (scroll step frame time, real GPU): DOM 24-30ms, Canvas 20-23ms, WebGL 17-22ms.
   let renderer = 'dom';
-  if (window.WebglAddon && params.get('webgl') === '1') {
+  function softwareGL() {
+    try {
+      const c = document.createElement('canvas');
+      const g = c.getContext('webgl2') || c.getContext('webgl');
+      if (!g) return true;
+      const ext = g.getExtension('WEBGL_debug_renderer_info');
+      const name = ext ? g.getParameter(ext.UNMASKED_RENDERER_WEBGL) : g.getParameter(g.RENDERER);
+      return /swiftshader|llvmpipe|software|softpipe/i.test(String(name));
+    } catch (e) { return true; }
+  }
+  function useCanvas() {
+    if (!window.CanvasAddon) return false;
+    try { term.loadAddon(new CanvasAddon.CanvasAddon()); renderer = 'canvas'; return true; } catch (e) { return false; }
+  }
+  function useWebgl() {
+    if (!window.WebglAddon) return false;
     try {
       const gl = new WebglAddon.WebglAddon();
-      gl.onContextLoss(function () { gl.dispose(); renderer = 'dom'; });
+      // GPU reset / context lost: drop to the canvas renderer instead of the slow DOM one.
+      gl.onContextLoss(function () { gl.dispose(); renderer = 'dom'; useCanvas(); });
       term.loadAddon(gl);
       renderer = 'webgl';
-    } catch (e) { renderer = 'dom'; }
+      return true;
+    } catch (e) { return false; }
   }
+  const want = params.get('r') || 'auto';
+  if (want === 'webgl') { useWebgl() || useCanvas(); }
+  else if (want === 'canvas') { useCanvas(); }
+  else if (want === 'auto') { (!softwareGL() && useWebgl()) || useCanvas(); }
   window.rendererName = function () { return renderer; };
 
   // ---------- sizing / wide viewport ----------
@@ -78,7 +103,7 @@ function start() {
     if (fixedCols > 0) el.style.width = (screenWidth() + 10) + 'px';
   }
 
-  window.setFontSize = function (n) { fontSize = n; term.options.fontSize = n; doFit(); };
+  window.setFontSize = function (n) { fontSize = n; term.options.fontSize = n; invalidateMetrics(); doFit(); };
   window.setFixedCols = function (n) { fixedCols = n; if (n <= 0) wrap.scrollLeft = 0; doFit(); };
   window.panBy = function (dx) { wrap.scrollLeft += dx * wrap.clientWidth; };
   window.followCursor = function () {
@@ -94,9 +119,34 @@ function start() {
   // Capture-phase listeners on #wrap run before xterm's own handlers, so xterm's
   // line-jumpy touch scrolling never runs; we do our own with momentum.
 
+  // Cached metrics: reading offsetHeight on every touchmove forced a layout per event.
+  let chCache = 0, screenEl = null;
+  function screenNode() { return screenEl && screenEl.isConnected ? screenEl : (screenEl = el.querySelector('.xterm-screen')); }
   function cellHeight() {
-    const sc = el.querySelector('.xterm-screen');
-    return sc && term.rows ? sc.offsetHeight / term.rows : 16;
+    if (!chCache) {
+      const sc = screenNode();
+      chCache = sc && term.rows ? sc.offsetHeight / term.rows : 16;
+    }
+    return chCache || 16;
+  }
+  function invalidateMetrics() { chCache = 0; }
+  term.onResize(invalidateMetrics);
+  term.onRender(function () { if (!chCache) cellHeight(); });
+
+  // Sub-line offset: between whole-line scroll steps the screen is shifted by the leftover
+  // pixels with a compositor-only transform, so the text follows the finger smoothly.
+  let offsetPx = 0;
+  function setOffset(px) {
+    const buf = term.buffer.active;
+    if (buf.type !== 'normal') px = 0;
+    else if ((px < 0 && buf.viewportY <= 0) || (px > 0 && buf.viewportY >= buf.baseY)) px = 0; // at the ends
+    if (px === offsetPx) return;
+    offsetPx = px;
+    const sc = screenNode();
+    if (sc) {
+      sc.style.willChange = 'transform';
+      sc.style.transform = px ? 'translate3d(0,' + (-px).toFixed(1) + 'px,0)' : '';
+    }
   }
 
   // Scroll by n lines (n > 0 = towards newer output / down).
@@ -127,9 +177,9 @@ function start() {
 
   let fling = 0; // requestAnimationFrame id
   function stopFling() { if (fling) cancelAnimationFrame(fling); fling = 0; }
-  function startFling(v /* px per ms, + = finger moved up = scroll down */) {
+  function startFling(v /* px per ms, + = finger moved up = scroll down */, acc0) {
     stopFling();
-    let acc = 0, last = performance.now();
+    let acc = acc0 || 0, last = performance.now();
     const ch = cellHeight();
     function step(now) {
       const dt = Math.min(32, now - last); last = now;
@@ -137,7 +187,8 @@ function start() {
       const lines = Math.trunc(acc / ch);
       if (lines) { scrollBy(lines); acc -= lines * ch; }
       v *= Math.pow(0.95, dt / 16); // friction
-      if (Math.abs(v) > 0.03) fling = requestAnimationFrame(step); else fling = 0;
+      if (Math.abs(v) > 0.03) { setOffset(acc); fling = requestAnimationFrame(step); }
+      else { setOffset(0); fling = 0; }
     }
     fling = requestAnimationFrame(step);
   }
@@ -156,7 +207,8 @@ function start() {
     } else if (e.touches.length === 1) {
       stopFling();
       const t = e.touches[0];
-      pan = { x: t.clientX, y: t.clientY, sl: wrap.scrollLeft, dir: null, lastY: t.clientY, acc: 0, samples: [] };
+      // Continue from the current sub-line offset so catching a fling doesn't jump.
+      pan = { x: t.clientX, y: t.clientY, sl: wrap.scrollLeft, dir: null, lastY: t.clientY, acc: offsetPx, samples: [] };
       wheelPos = touchToCell(t);
     }
   }, { capture: true, passive: false });
@@ -185,6 +237,8 @@ function start() {
         const ch = cellHeight();
         const lines = Math.trunc(pan.acc / ch);
         if (lines) { scrollBy(lines); pan.acc -= lines * ch; }
+        setOffset(pan.acc);
+        if (offsetPx === 0 && pan.acc !== 0 && term.buffer.active.type === 'normal') pan.acc = 0; // hit an end
         const now = performance.now();
         pan.samples.push({ t: now, y: y });
         while (pan.samples.length > 2 && now - pan.samples[0].t > 100) pan.samples.shift();
@@ -210,13 +264,17 @@ function start() {
     }
     if (e.touches.length === 0 && pan) {
       // Momentum: velocity over the last ~100 ms of the drag.
-      if (pan.dir === 'v' && pan.samples.length >= 2) {
-        const a = pan.samples[0], b = pan.samples[pan.samples.length - 1];
-        const dt = b.t - a.t;
-        if (dt > 0 && performance.now() - b.t < 80) {
-          const v = (a.y - b.y) / dt;
-          if (Math.abs(v) > 0.3) startFling(v);
+      if (pan.dir === 'v') {
+        let flung = false;
+        if (pan.samples.length >= 2) {
+          const a = pan.samples[0], b = pan.samples[pan.samples.length - 1];
+          const dt = b.t - a.t;
+          if (dt > 0 && performance.now() - b.t < 80) {
+            const v = (a.y - b.y) / dt;
+            if (Math.abs(v) > 0.3) { startFling(v, pan.acc); flung = true; }
+          }
         }
+        if (!flung) setOffset(0); // released without a fling: settle on the line grid
         e.stopPropagation();
       }
       pan = null;
@@ -445,5 +503,35 @@ function start() {
       });
     };
     setInterval(function () { console.log('diag ' + window.diag()); }, 500);
+
+    // Scroll benchmark: 120 one-line scroll steps, one per animation frame, through the
+    // same scrollBy() the touch handler uses. Reports frame intervals (ms).
+    window.benchScroll = function (dir) {
+      return new Promise(function (resolve) {
+        const times = []; let last = performance.now(); let i = 0;
+        function step(now) {
+          times.push(now - last); last = now;
+          scrollBy(dir);
+          if (++i < 120) requestAnimationFrame(step);
+          else {
+            times.shift();
+            times.sort(function (a, b) { return a - b; });
+            const avg = times.reduce(function (s, x) { return s + x; }, 0) / times.length;
+            resolve({ renderer: renderer, avg: +avg.toFixed(1), p95: +times[Math.floor(times.length * 0.95)].toFixed(1), max: +times[times.length - 1].toFixed(1), janky: times.filter(function (x) { return x > 20; }).length });
+          }
+        }
+        requestAnimationFrame(step);
+      });
+    };
+    const benchTimer = setInterval(function () {
+      if (params.get('bench') !== '1') { clearInterval(benchTimer); return; }
+      if (term.buffer.active.length < 200) return;
+      clearInterval(benchTimer);
+      setTimeout(function () {
+        window.benchScroll(-1).then(function (a) {
+          return window.benchScroll(1).then(function (b) { console.log('bench ' + JSON.stringify({ up: a, down: b })); });
+        });
+      }, 1500);
+    }, 1000);
   }
 }

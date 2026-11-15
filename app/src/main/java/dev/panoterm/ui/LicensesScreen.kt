@@ -40,6 +40,7 @@ private val NOTICES = listOf(
     Notice("@xterm/addon-unicode11 0.8.0", "MIT", "© The xterm.js authors", "xterm-addon-unicode11.LICENSE.txt"),
     Notice("@xterm/addon-web-links 0.11.0", "MIT", "© The xterm.js authors", "xterm-addon-web-links.LICENSE.txt"),
     Notice("@xterm/addon-webgl 0.18.0", "MIT", "© The xterm.js authors", "xterm-addon-webgl.LICENSE.txt"),
+    Notice("@xterm/addon-canvas 0.7.0", "MIT", "© The xterm.js authors", "xterm-addon-canvas.LICENSE.txt"),
     Notice("Tailscale (tsnet)", "BSD-3-Clause", "© 2020 Tailscale Inc & contributors", "tailscale.LICENSE.txt"),
     Notice("wireguard-go", "MIT", "© WireGuard LLC", "wireguard-go.LICENSE.txt"),
     Notice("Go 표준 라이브러리", "BSD-3-Clause", "© 2009 The Go Authors", "go.LICENSE.txt"),

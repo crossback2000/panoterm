@@ -40,8 +40,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.Font
@@ -185,43 +183,6 @@ fun ReaderView(load: (lastOnly: Boolean, (String) -> Unit) -> Unit, initialFont:
                 fontFamily = font,
                 modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(12.dp),
             )
-        }
-    }
-}
-
-// ------------------------------------------------------------------ compose box
-
-@Composable
-fun ComposeBox(history: List<String>, onSend: (text: String, submit: Boolean) -> Unit, onClose: () -> Unit) {
-    var text by remember { mutableStateOf("") }
-    var showHistory by remember { mutableStateOf(false) }
-    val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
-
-    Column(Modifier.fillMaxWidth().background(Panel).padding(6.dp)) {
-        OutlinedTextField(
-            value = text,
-            onValueChange = { text = it },
-            placeholder = { Text("Claude에게 보낼 내용 (여러 줄, 한글·음성 입력 가능)") },
-            modifier = Modifier.fillMaxWidth().heightIn(min = 80.dp, max = 220.dp).focusRequester(focus),
-        )
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            Button(onClick = { onSend(text, true); text = "" }, enabled = text.isNotBlank()) { Text("보내기 ⏎") }
-            OutlinedButton(onClick = { onSend(text, false); text = "" }, enabled = text.isNotBlank()) { Text("넣기만") }
-            TextButton(onClick = { showHistory = !showHistory }, enabled = history.isNotEmpty()) { Text("기록") }
-            Spacer(Modifier.weight(1f))
-            TextButton(onClick = onClose) { Text("닫기") }
-        }
-        if (showHistory) {
-            Column(Modifier.heightIn(max = 200.dp).verticalScroll(rememberScrollState())) {
-                history.forEach { h ->
-                    Text(
-                        h.replace('\n', ' '),
-                        color = Color.White, maxLines = 2, overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.fillMaxWidth().clickable { text = h; showHistory = false }.padding(vertical = 6.dp),
-                    )
-                }
-            }
         }
     }
 }

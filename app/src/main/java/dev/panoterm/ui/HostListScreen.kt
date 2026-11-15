@@ -191,7 +191,7 @@ private fun SessionRow(s: TermSession, onClick: () -> Unit) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Dot(if (st == TermSession.State.CONNECTED) Color(0xFF4CAF50) else Color(0xFF9E9E9E))
             Spacer(Modifier.width(8.dp))
-            Text(s.host.title, Modifier.weight(1f))
+            Text(s.host.title + (s.label?.let { " · $it" } ?: ""), Modifier.weight(1f))
             Text(
                 when (st) {
                     TermSession.State.CONNECTED -> "연결됨"

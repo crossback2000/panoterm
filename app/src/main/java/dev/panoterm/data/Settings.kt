@@ -24,8 +24,8 @@ class Settings(ctx: Context) {
         val keepScreenOn: Boolean = true,
         val approvalOverlay: Boolean = true,
         val twoFingerEsc: Boolean = true,
-        /** WebGL terminal renderer (experimental). */
-        val gpuRender: Boolean = false,
+        /** Terminal renderer: auto (WebGL on hardware GPU, else Canvas) | webgl | canvas | dom. */
+        val renderer: String = "auto",
         val updateCheck: Boolean = true,
         /** Download and install new releases automatically (installs only when no session is open). */
         val autoUpdate: Boolean = true,
@@ -50,12 +50,21 @@ class Settings(ctx: Context) {
         keepScreenOn = prefs.getBoolean("keepScreenOn", true),
         approvalOverlay = prefs.getBoolean("approvalOverlay", true),
         twoFingerEsc = prefs.getBoolean("twoFingerEsc", true),
-        gpuRender = prefs.getBoolean("gpuRender", false),
+        renderer = prefs.getString("renderer", "auto")!!,
         updateCheck = prefs.getBoolean("updateCheck", true),
         autoUpdate = prefs.getBoolean("autoUpdate", true),
         updateWifiOnly = prefs.getBoolean("updateWifiOnly", true),
-        keyBar = prefs.getString("keyBar", "")!!.split(',').filter { it.isNotBlank() },
+        keyBar = migrateKeyBar(prefs.getString("keyBar", "")!!.split(',').filter { it.isNotBlank() }),
     )
+
+    /** v1.2.2 slimmed the key row; drop the removed keys from a row the user had customised (once). */
+    private fun migrateKeyBar(ids: List<String>): List<String> {
+        if (ids.isEmpty() || prefs.getBoolean("keybar_v122", false)) return ids
+        val removed = setOf("stab", "esc2", "ctrlc", "tab", "ctrl", "alt", "at", "pipe", "tilde", "dash", "nl")
+        val next = ids.filterNot { it in removed }
+        prefs.edit().putBoolean("keybar_v122", true).putString("keyBar", next.joinToString(",")).apply()
+        return next
+    }
 
     fun update(f: (Values) -> Values) {
         val v = f(_values.value)
@@ -69,7 +78,7 @@ class Settings(ctx: Context) {
             .putBoolean("keepScreenOn", v.keepScreenOn)
             .putBoolean("approvalOverlay", v.approvalOverlay)
             .putBoolean("twoFingerEsc", v.twoFingerEsc)
-            .putBoolean("gpuRender", v.gpuRender)
+            .putString("renderer", v.renderer)
             .putBoolean("updateCheck", v.updateCheck)
             .putBoolean("autoUpdate", v.autoUpdate)
             .putBoolean("updateWifiOnly", v.updateWifiOnly)

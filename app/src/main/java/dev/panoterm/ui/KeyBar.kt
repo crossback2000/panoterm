@@ -93,8 +93,7 @@ val ALL_KEYS: List<BarKey> = listOf(
 )
 
 val DEFAULT_KEY_IDS = listOf(
-    "esc", "stab", "esc2", "ctrlc", "tab", "ctrl", "alt", "pad",
-    "left", "down", "up", "right", "palette", "slash", "at", "pipe", "tilde", "dash", "bs", "nl",
+    "esc", "pad", "left", "down", "up", "right", "palette", "slash", "bs",
 )
 
 fun keysFor(ids: List<String>): List<BarKey> {

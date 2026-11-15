@@ -69,7 +69,14 @@ class ByteRing(private val cap: Int) {
 
 data class PortForward(val remoteHost: String, val remotePort: Int, val localPort: Int)
 
-class TermSession(host0: Host, private val app: App) {
+class TermSession(
+    host0: Host,
+    private val app: App,
+    /** Command for the first connect only (e.g. the tmux installer); reconnects use the normal one. */
+    private var oneShotCommand: String? = null,
+    /** Shown after the host title in tabs, e.g. "tmux 설치". */
+    val label: String? = null,
+) {
     enum class State { IDLE, CONNECTING, CONNECTED, CLOSED }
 
     val id: String = UUID.randomUUID().toString()
@@ -293,6 +300,7 @@ class TermSession(host0: Host, private val app: App) {
     }
 
     private fun startupCommand(h: Host): String {
+        oneShotCommand?.let { oneShotCommand = null; return it }
         if (!h.tmux) return ""
         val name = h.tmuxSession.ifBlank { "main" }.replace(Regex("[^A-Za-z0-9_.-]"), "_")
         return tmuxCommand(name)
@@ -309,8 +317,35 @@ class TermSession(host0: Host, private val app: App) {
          * The script must not contain single quotes.
          * If tmux is missing it emits OSC 777;panoterm;notmux so the app can warn the user.
          */
-        fun tmuxCommand(name: String): String {
-            val script = listOf(
+        fun tmuxCommand(name: String): String = "exec sh -c '${tmuxScript(name).joinToString("\n")}'"
+
+        /**
+         * Installs tmux with whatever package manager the server has, then attaches to tmux.
+         * Runs in its own tab; sudo asks for the password in that terminal (the app never sees it).
+         * Same quoting rules as [tmuxCommand].
+         */
+        fun installTmuxCommand(name: String): String {
+            val install = listOf(
+                "echo \"[PanoTerm] tmux 설치를 시작합니다. 비밀번호를 물으면 서버(sudo) 비밀번호를 입력하세요.\"",
+                "S=\"\"; if [ \"\$(id -u)\" != \"0\" ] && command -v sudo >/dev/null 2>&1; then S=sudo; fi",
+                "if [ \"\$(uname -s)\" = \"Darwin\" ]; then " +
+                    "B=\$(command -v brew 2>/dev/null); for p in /opt/homebrew/bin/brew /usr/local/bin/brew; do [ -z \"\$B\" ] && [ -x \"\$p\" ] && B=\$p; done; " +
+                    "if [ -n \"\$B\" ]; then \"\$B\" install tmux; else echo \"Homebrew가 없어요. https://brew.sh 에서 먼저 설치하세요.\"; fi; " +
+                    "elif command -v apt-get >/dev/null 2>&1; then \$S apt-get update && \$S apt-get install -y tmux; " +
+                    "elif command -v dnf >/dev/null 2>&1; then \$S dnf install -y tmux; " +
+                    "elif command -v yum >/dev/null 2>&1; then \$S yum install -y tmux; " +
+                    "elif command -v pacman >/dev/null 2>&1; then \$S pacman -S --noconfirm tmux; " +
+                    "elif command -v zypper >/dev/null 2>&1; then \$S zypper --non-interactive install tmux; " +
+                    "elif command -v apk >/dev/null 2>&1; then \$S apk add tmux; " +
+                    "elif command -v pkg >/dev/null 2>&1; then \$S pkg install -y tmux; " +
+                    "else echo \"이 서버의 패키지 관리자를 몰라요. tmux를 직접 설치해 주세요.\"; fi",
+                "echo \"[PanoTerm] 설치 단계 끝. tmux로 들어갑니다...\"",
+            )
+            return "exec sh -c '${(install + tmuxScript(name)).joinToString("\n")}'"
+        }
+
+        private fun tmuxScript(name: String): List<String> =
+            listOf(
                 "export MOBILE_TERM=1",
                 "T=\$(command -v tmux 2>/dev/null)",
                 "if [ -z \"\$T\" ]; then T=\$(\"\${SHELL:-/bin/sh}\" -lc \"command -v tmux\" </dev/null 2>/dev/null | tail -n 1); fi",
@@ -321,9 +356,7 @@ class TermSession(host0: Host, private val app: App) {
                 "printf \"\\033]777;panoterm;notmux\\007\"",
                 "echo \"[PanoTerm] tmux를 찾지 못해 일반 셸로 접속했습니다. 연결이 끊기면 실행 중인 작업도 끝나요.\"",
                 "exec \"\${SHELL:-/bin/sh}\" -l",
-            ).joinToString("\n")
-            return "exec sh -c '$script'"
-        }
+            )
     }
 
     private fun listener(gen: Int) = object : SessionListener {
@@ -399,12 +432,21 @@ class SessionManager(private val app: App) {
     /** Reuses an open session for the same host, otherwise creates one (connects once the view reports its size). */
     @Synchronized
     fun open(host: Host): TermSession {
-        _sessions.value.firstOrNull { it.host.id == host.id }?.let {
+        _sessions.value.firstOrNull { it.host.id == host.id && it.label == null }?.let {
             it.updateHost(host)
             if (it.state.value == TermSession.State.CLOSED) it.connect()
             return it
         }
         val s = TermSession(host, app)
+        _sessions.value = _sessions.value + s
+        SessionService.update(app, _sessions.value.size)
+        return s
+    }
+
+    /** Opens an additional session for [host] that runs [command] once (does not replace the main one). */
+    @Synchronized
+    fun openExtra(host: Host, command: String, label: String): TermSession {
+        val s = TermSession(host, app, command, label)
         _sessions.value = _sessions.value + s
         SessionService.update(app, _sessions.value.size)
         return s

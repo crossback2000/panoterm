@@ -21,10 +21,21 @@ class TmuxCommandTest {
         assertTrue(cmd.contains("777;panoterm;notmux"))
     }
 
-    /** Writes the generated script to a file so it can be exercised with a real sh (see build docs). */
+    @Test fun installerIsQuotedSafelyAndCoversPackageManagers() {
+        val inst = TermSession.installTmuxCommand("main")
+        assertTrue(inst.startsWith("exec sh -c '") && inst.endsWith("'"))
+        assertFalse(inst.removePrefix("exec sh -c '").removeSuffix("'").contains('\''))
+        listOf("apt-get", "dnf", "yum", "pacman", "zypper", "apk add", "brew", "pkg install").forEach {
+            assertTrue("missing $it", inst.contains(it))
+        }
+        // After installing it attaches to tmux the same way as a normal connect.
+        assertTrue(inst.contains("-u new -A -s main"))
+    }
+
+    /** Writes the generated scripts to files so they can be exercised with a real sh. */
     @Test fun dumpScript() {
-        val out = java.io.File(System.getProperty("java.io.tmpdir"), "panoterm-tmux-cmd.txt")
-        out.writeText(cmd)
-        assertTrue(out.length() > 0)
+        val dir = java.io.File(System.getProperty("java.io.tmpdir"))
+        java.io.File(dir, "panoterm-tmux-cmd.txt").writeText(cmd)
+        java.io.File(dir, "panoterm-tmux-install.txt").writeText(TermSession.installTmuxCommand("main"))
     }
 }

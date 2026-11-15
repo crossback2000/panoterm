@@ -50,7 +50,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import dev.panoterm.App
 import dev.panoterm.MainActivity
-import dev.panoterm.data.PromptHistory
 import dev.panoterm.term.ApprovalPrompt
 import dev.panoterm.term.TermSession
 import dev.panoterm.term.TermTable
@@ -77,6 +76,7 @@ fun TerminalScreen(
     val reconnectIn by session.reconnectIn.collectAsState()
     val noTmux by session.noTmux.collectAsState()
     var noTmuxDismissed by remember(session.id) { mutableStateOf(false) }
+    var installTmuxAsk by remember { mutableStateOf(false) }
     val sessions by app.sessions.sessions.collectAsState()
     val settings by app.settings.values.collectAsState()
 
@@ -85,18 +85,15 @@ fun TerminalScreen(
     var composing by remember { mutableStateOf("") }
     var ctrlOn by remember { mutableStateOf(false) }
     var altOn by remember { mutableStateOf(false) }
-    var hangulOn by remember { mutableStateOf(false) }
     var showTmux by remember(session.id) { mutableStateOf(session.host.tmux) }
     var overlay by remember { mutableStateOf(Overlay.NONE) }
     var lensTables by remember { mutableStateOf<List<TermTable>>(emptyList()) }
     var tableCount by remember { mutableIntStateOf(0) }
     var prompt by remember { mutableStateOf<ApprovalPrompt?>(null) }
-    var composeOpen by remember { mutableStateOf(false) }
     var portsOpen by remember { mutableStateOf(false) }
     var sessionMenu by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
     var paletteOpen by remember { mutableStateOf(false) }
-    val history = remember { PromptHistory(ctx) }
     val snippets by app.snippets.items.collectAsState()
 
     @Composable
@@ -171,7 +168,6 @@ fun TerminalScreen(
             cs && e.keyCode == KeyEvent.KEYCODE_C -> { copySelection(); true }
             cs && e.keyCode == KeyEvent.KEYCODE_F -> { openLens(); true }
             cs && e.keyCode == KeyEvent.KEYCODE_R -> { overlay = Overlay.READER; true }
-            cs && e.keyCode == KeyEvent.KEYCODE_E -> { composeOpen = true; true }
             cs && e.keyCode == KeyEvent.KEYCODE_W -> { cycleWidth(); true }
             cs && e.keyCode == KeyEvent.KEYCODE_P -> { paletteOpen = true; true }
             ca && (e.keyCode == KeyEvent.KEYCODE_EQUALS || e.keyCode == KeyEvent.KEYCODE_PLUS || e.keyCode == KeyEvent.KEYCODE_NUMPAD_ADD) -> { changeFont(+1); true }
@@ -194,10 +190,9 @@ fun TerminalScreen(
         input.onShortcut = ::shortcut
         input.onComposing = { composing = it }
         input.onStickyChanged = { c, a -> ctrlOn = c; altOn = a }
-        input.onHangulChanged = { hangulOn = it }
         input.settings = { app.settings.current }
 
-        webView.bind(fontSize, fixedCols, app.settings.current.gpuRender, object : TerminalWebView.Callbacks {
+        webView.bind(fontSize, fixedCols, app.settings.current.renderer, object : TerminalWebView.Callbacks {
             override fun onReady(cols: Int, rows: Int) = session.onTerminalSize(cols, rows)
             override fun onResize(cols: Int, rows: Int) = session.onTerminalSize(cols, rows)
             override fun onTermData(bytes: ByteArray) = session.send(bytes)
@@ -235,12 +230,6 @@ fun TerminalScreen(
         }
     }
 
-    // Hardware keys go to the compose box while it is open.
-    DisposableEffect(composeOpen, overlay) {
-        activity.keyTarget = if (composeOpen) null else input
-        onDispose {}
-    }
-
     DisposableEffect(settings.keepScreenOn) {
         view.keepScreenOn = settings.keepScreenOn
         onDispose { view.keepScreenOn = false }
@@ -266,7 +255,7 @@ fun TerminalScreen(
                 // Title takes whatever is left; the action buttons always stay visible.
                 Box(Modifier.weight(1f)) {
                     Text(
-                        " ${session.host.title}" + if (sessions.size > 1) " ▾" else "",
+                        " ${session.host.title}" + (session.label?.let { " · $it" } ?: "") + if (sessions.size > 1) " ▾" else "",
                         color = Color.White, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.padding(vertical = 8.dp).then(
                             if (sessions.size > 1) Modifier.clickableNoFocus { sessionMenu = true } else Modifier
@@ -275,7 +264,7 @@ fun TerminalScreen(
                     DropdownMenu(expanded = sessionMenu, onDismissRequest = { sessionMenu = false }) {
                         sessions.forEach { s ->
                             DropdownMenuItem(
-                                text = { Text((if (s.id == session.id) "● " else "") + s.host.title) },
+                                text = { Text((if (s.id == session.id) "● " else "") + s.host.title + (s.label?.let { " · $it" } ?: "")) },
                                 onClick = { sessionMenu = false; if (s.id != session.id) onSwitch(s) },
                             )
                         }
@@ -286,9 +275,7 @@ fun TerminalScreen(
                     IconText(if (fixedCols == 0) "↔" else "↔$fixedCols") { cycleWidth() }
                     IconText("▦") { openLens() }
                     IconText("📖") { overlay = Overlay.READER }
-                    IconText("✎") { composeOpen = !composeOpen }
                     IconText("⚡") { paletteOpen = true }
-                    IconText(if (hangulOn) "한" else "A") { input.toggleHangul() }
                     Box {
                         IconText("⋮") { menuOpen = true }
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
@@ -312,10 +299,10 @@ fun TerminalScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        "서버에서 tmux를 못 찾아 일반 셸로 접속했어요. 연결이 끊기면 Claude 작업도 같이 끝나요. " +
-                            "서버에 tmux를 설치해 주세요 (Ubuntu: sudo apt install tmux, Mac: brew install tmux).",
+                        "서버에서 tmux를 못 찾아 일반 셸로 접속했어요. 연결이 끊기면 Claude 작업도 같이 끝나요.",
                         color = Color.White, fontSize = 12.sp, modifier = Modifier.weight(1f),
                     )
+                    TextButton(onClick = { installTmuxAsk = true }) { Text("tmux 설치") }
                     TextButton(onClick = { noTmuxDismissed = true }) { Text("닫기") }
                 }
             }
@@ -351,30 +338,18 @@ fun TerminalScreen(
             }
 
             val p = prompt
-            if (p != null && settings.approvalOverlay && !composeOpen) {
+            if (p != null && settings.approvalOverlay) {
                 ApprovalBar(p, onChoose = { n -> session.send(n) }, onEsc = { session.send("\u001b") })
             }
 
-            if (composeOpen) {
-                ComposeBox(
-                    history = history.get(session.host.id),
-                    onSend = { text, submit ->
-                        history.add(session.host.id, text)
-                        session.paste(text)
-                        if (submit) main.postDelayed({ session.send("\r") }, 60)
-                    },
-                    onClose = { composeOpen = false; input.requestFocus() },
-                )
-            } else {
-                KeyBar(keys = keysFor(settings.keyBar), showTmux = showTmux, ctrlOn = ctrlOn, altOn = altOn) { k ->
-                    when (k) {
-                        is BarKey.Text -> input.sendText(k.text)
-                        is BarKey.Raw -> input.sendRaw(k.bytes)
-                        is BarKey.Code -> input.sendKeyCode(k.keyCode, k.shift)
-                        is BarKey.Toggle -> if (k.ctrl) input.toggleCtrl() else input.toggleAlt()
-                        is BarKey.Palette -> paletteOpen = true
-                        is BarKey.Pad -> {}
-                    }
+            KeyBar(keys = keysFor(settings.keyBar), showTmux = showTmux, ctrlOn = ctrlOn, altOn = altOn) { k ->
+                when (k) {
+                    is BarKey.Text -> input.sendText(k.text)
+                    is BarKey.Raw -> input.sendRaw(k.bytes)
+                    is BarKey.Code -> input.sendKeyCode(k.keyCode, k.shift)
+                    is BarKey.Toggle -> if (k.ctrl) input.toggleCtrl() else input.toggleAlt()
+                    is BarKey.Palette -> paletteOpen = true
+                    is BarKey.Pad -> {}
                 }
             }
         }
@@ -390,6 +365,31 @@ fun TerminalScreen(
     }
 
     if (portsOpen) PortsDialog(session) { portsOpen = false }
+    if (installTmuxAsk) {
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { installTmuxAsk = false },
+            title = { Text("서버에 tmux 설치") },
+            text = {
+                Text(
+                    "새 탭을 열어 서버 종류를 알아서 확인하고 tmux를 설치해요 " +
+                        "(apt, dnf, yum, pacman, zypper, apk, brew, pkg).\n\n" +
+                        "• 지금 탭은 그대로 둡니다. 실행 중인 Claude는 영향 없어요.\n" +
+                        "• sudo 비밀번호를 물으면 새 탭에서 직접 입력하세요.\n" +
+                        "• 설치가 끝나면 그 탭이 바로 tmux로 들어갑니다. 다음 접속부터는 자동으로 tmux예요.",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    installTmuxAsk = false
+                    noTmuxDismissed = true
+                    val name = session.host.tmuxSession.ifBlank { "main" }.replace(Regex("[^A-Za-z0-9_.-]"), "_")
+                    val s = app.sessions.openExtra(session.host, TermSession.installTmuxCommand(name), "tmux 설치")
+                    onSwitch(s)
+                }) { Text("설치하기") }
+            },
+            dismissButton = { TextButton(onClick = { installTmuxAsk = false }) { Text("취소") } },
+        )
+    }
     if (paletteOpen) {
         CommandPalette(snippets, onDismiss = { paletteOpen = false }) { s ->
             paletteOpen = false
