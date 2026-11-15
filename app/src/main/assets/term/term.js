@@ -47,6 +47,19 @@ function start() {
   const el = document.getElementById('t');
   term.open(el);
 
+  // Optional GPU renderer (settings → "GPU 렌더링"). Off by default: some GPUs/drivers
+  // clip glyphs in the WebGL texture atlas. Falls back to DOM on context loss.
+  let renderer = 'dom';
+  if (window.WebglAddon && params.get('webgl') === '1') {
+    try {
+      const gl = new WebglAddon.WebglAddon();
+      gl.onContextLoss(function () { gl.dispose(); renderer = 'dom'; });
+      term.loadAddon(gl);
+      renderer = 'webgl';
+    } catch (e) { renderer = 'dom'; }
+  }
+  window.rendererName = function () { return renderer; };
+
   // ---------- sizing / wide viewport ----------
 
   function screenWidth() {
@@ -77,8 +90,57 @@ function start() {
     }
   };
 
-  // ---------- touch: horizontal pan + pinch zoom ----------
-  // Capture-phase listeners on #wrap run before xterm's own handlers.
+  // ---------- touch: vertical kinetic scroll, horizontal pan, pinch zoom ----------
+  // Capture-phase listeners on #wrap run before xterm's own handlers, so xterm's
+  // line-jumpy touch scrolling never runs; we do our own with momentum.
+
+  function cellHeight() {
+    const sc = el.querySelector('.xterm-screen');
+    return sc && term.rows ? sc.offsetHeight / term.rows : 16;
+  }
+
+  // Scroll by n lines (n > 0 = towards newer output / down).
+  //  - normal buffer (shell, Claude Code): scroll xterm's scrollback
+  //  - alternate buffer with mouse reporting (tmux "mouse on", vim, less): send wheel events
+  //    at the touch position so the program scrolls its own history
+  let wheelPos = { col: 1, row: 1 };
+  function scrollBy(n) {
+    if (!n) return;
+    const buf = term.buffer.active;
+    if (buf.type === 'normal') { term.scrollLines(n); return; }
+    if (term.modes.mouseTrackingMode !== 'none') {
+      const code = n > 0 ? 65 : 64; // SGR wheel down / up
+      let s = '';
+      for (let i = 0; i < Math.min(Math.abs(n), 10); i++) s += '\x1b[<' + code + ';' + wheelPos.col + ';' + wheelPos.row + 'M';
+      Bridge.onTermData(s);
+    }
+  }
+  function touchToCell(t) {
+    const sc = el.querySelector('.xterm-screen');
+    if (!sc) return { col: 1, row: 1 };
+    const r = sc.getBoundingClientRect();
+    return {
+      col: Math.max(1, Math.min(term.cols, Math.floor((t.clientX - r.left) / (r.width / term.cols)) + 1)),
+      row: Math.max(1, Math.min(term.rows, Math.floor((t.clientY - r.top) / (r.height / term.rows)) + 1)),
+    };
+  }
+
+  let fling = 0; // requestAnimationFrame id
+  function stopFling() { if (fling) cancelAnimationFrame(fling); fling = 0; }
+  function startFling(v /* px per ms, + = finger moved up = scroll down */) {
+    stopFling();
+    let acc = 0, last = performance.now();
+    const ch = cellHeight();
+    function step(now) {
+      const dt = Math.min(32, now - last); last = now;
+      acc += v * dt;
+      const lines = Math.trunc(acc / ch);
+      if (lines) { scrollBy(lines); acc -= lines * ch; }
+      v *= Math.pow(0.95, dt / 16); // friction
+      if (Math.abs(v) > 0.03) fling = requestAnimationFrame(step); else fling = 0;
+    }
+    fling = requestAnimationFrame(step);
+  }
 
   let pinch = null, pan = null;
   function dist(e) {
@@ -92,7 +154,10 @@ function start() {
       pan = null;
       e.preventDefault(); e.stopPropagation();
     } else if (e.touches.length === 1) {
-      pan = { x: e.touches[0].clientX, y: e.touches[0].clientY, sl: wrap.scrollLeft, dir: null };
+      stopFling();
+      const t = e.touches[0];
+      pan = { x: t.clientX, y: t.clientY, sl: wrap.scrollLeft, dir: null, lastY: t.clientY, acc: 0, samples: [] };
+      wheelPos = touchToCell(t);
     }
   }, { capture: true, passive: false });
 
@@ -111,6 +176,18 @@ function start() {
       if (!pan.dir && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) pan.dir = Math.abs(dx) > Math.abs(dy) ? 'h' : 'v';
       if (pan.dir === 'h' && fixedCols > 0) {
         wrap.scrollLeft = pan.sl - dx;
+        e.preventDefault(); e.stopPropagation();
+      } else if (pan.dir === 'v') {
+        const y = e.touches[0].clientY;
+        const d = pan.lastY - y; // finger up => positive => scroll down (newer)
+        pan.lastY = y;
+        pan.acc += d;
+        const ch = cellHeight();
+        const lines = Math.trunc(pan.acc / ch);
+        if (lines) { scrollBy(lines); pan.acc -= lines * ch; }
+        const now = performance.now();
+        pan.samples.push({ t: now, y: y });
+        while (pan.samples.length > 2 && now - pan.samples[0].t > 100) pan.samples.shift();
         e.preventDefault(); e.stopPropagation();
       }
     }
@@ -131,7 +208,19 @@ function start() {
       }
       e.stopPropagation();
     }
-    if (e.touches.length === 0) pan = null;
+    if (e.touches.length === 0 && pan) {
+      // Momentum: velocity over the last ~100 ms of the drag.
+      if (pan.dir === 'v' && pan.samples.length >= 2) {
+        const a = pan.samples[0], b = pan.samples[pan.samples.length - 1];
+        const dt = b.t - a.t;
+        if (dt > 0 && performance.now() - b.t < 80) {
+          const v = (a.y - b.y) / dt;
+          if (Math.abs(v) > 0.3) startFling(v);
+        }
+        e.stopPropagation();
+      }
+      pan = null;
+    }
   }, { capture: true, passive: false });
 
   // ---------- output / modes ----------
@@ -346,6 +435,7 @@ function start() {
       const sc = el.querySelector('.xterm-screen');
       const rowsEl = el.querySelector('.xterm-rows');
       return JSON.stringify({
+        renderer: renderer, viewportY: term.buffer.active.viewportY, baseY: term.buffer.active.baseY,
         cols: term.cols, rows: term.rows, win: [innerWidth, innerHeight],
         wrap: [wrap.clientWidth, wrap.clientHeight], screen: sc ? [sc.offsetWidth, sc.offsetHeight] : null,
         canvas: el.querySelectorAll('canvas').length, bufLen: term.buffer.active.length,
@@ -354,6 +444,6 @@ function start() {
         css: [getComputedStyle(wrap).position, getComputedStyle(wrap).height, document.body.clientHeight, document.documentElement.clientHeight, el.clientHeight]
       });
     };
-    setInterval(function () { console.log('diag ' + window.diag()); }, 4000);
+    setInterval(function () { console.log('diag ' + window.diag()); }, 500);
   }
 }

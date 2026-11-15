@@ -75,6 +75,8 @@ fun TerminalScreen(
     val state by session.state.collectAsState()
     val message by session.message.collectAsState()
     val reconnectIn by session.reconnectIn.collectAsState()
+    val noTmux by session.noTmux.collectAsState()
+    var noTmuxDismissed by remember(session.id) { mutableStateOf(false) }
     val sessions by app.sessions.sessions.collectAsState()
     val settings by app.settings.values.collectAsState()
 
@@ -195,7 +197,7 @@ fun TerminalScreen(
         input.onHangulChanged = { hangulOn = it }
         input.settings = { app.settings.current }
 
-        webView.bind(fontSize, fixedCols, object : TerminalWebView.Callbacks {
+        webView.bind(fontSize, fixedCols, app.settings.current.gpuRender, object : TerminalWebView.Callbacks {
             override fun onReady(cols: Int, rows: Int) = session.onTerminalSize(cols, rows)
             override fun onResize(cols: Int, rows: Int) = session.onTerminalSize(cols, rows)
             override fun onTermData(bytes: ByteArray) = session.send(bytes)
@@ -300,6 +302,21 @@ fun TerminalScreen(
                             MenuItem("✕  연결 끊고 닫기") { app.sessions.close(session); onBack() }
                         }
                     }
+                }
+            }
+
+            if (noTmux && !noTmuxDismissed) {
+                androidx.compose.runtime.LaunchedEffect(Unit) { showTmux = false } // tmux keys would just type letters
+                Row(
+                    Modifier.fillMaxWidth().background(Color(0xFF4E3B00)).padding(horizontal = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        "서버에서 tmux를 못 찾아 일반 셸로 접속했어요. 연결이 끊기면 Claude 작업도 같이 끝나요. " +
+                            "서버에 tmux를 설치해 주세요 (Ubuntu: sudo apt install tmux, Mac: brew install tmux).",
+                        color = Color.White, fontSize = 12.sp, modifier = Modifier.weight(1f),
+                    )
+                    TextButton(onClick = { noTmuxDismissed = true }) { Text("닫기") }
                 }
             }
 

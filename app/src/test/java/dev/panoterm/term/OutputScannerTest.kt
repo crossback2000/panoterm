@@ -41,6 +41,13 @@ class OutputScannerTest {
         assertEquals(listOf("복사된 텍스트"), clips)
     }
 
+    @Test fun noTmuxSignal() {
+        var hit = 0
+        val sc = OutputScanner({}, { _, _ -> }, {}, { hit++ })
+        sc.feed("\u001b]777;panoterm;notmux\u0007[PanoTerm] ...".toByteArray())
+        assertEquals(1, hit)
+    }
+
     @Test fun sequenceSplitAcrossChunks() {
         s.feed("\u001b]9;par".toByteArray())
         s.feed("tial\u0007".toByteArray())

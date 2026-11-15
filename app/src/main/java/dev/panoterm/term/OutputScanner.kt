@@ -14,6 +14,8 @@ class OutputScanner(
     private val onBell: () -> Unit,
     private val onNotify: (title: String, body: String) -> Unit,
     private val onClipboard: (String) -> Unit,
+    /** Our own startup script reports "tmux not found" (OSC 777;panoterm;notmux). */
+    private val onNoTmux: () -> Unit = {},
 ) {
     private enum class St { NORMAL, ESC, OSC, OSC_ESC }
 
@@ -53,7 +55,10 @@ class OutputScanner(
             }
             "777" -> {
                 val p = rest.split(';', limit = 3)
-                if (p.firstOrNull() == "notify") onNotify(p.getOrElse(1) { "" }, p.getOrElse(2) { "" })
+                when (p.firstOrNull()) {
+                    "notify" -> onNotify(p.getOrElse(1) { "" }, p.getOrElse(2) { "" })
+                    "panoterm" -> if (p.getOrNull(1) == "notmux") onNoTmux()
+                }
             }
             "52" -> {
                 val data = rest.substringAfter(';', "")

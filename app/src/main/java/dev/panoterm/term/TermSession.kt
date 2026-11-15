@@ -86,6 +86,9 @@ class TermSession(host0: Host, private val app: App) {
     /** Seconds until the next automatic reconnect, or null. */
     private val _reconnectIn = MutableStateFlow<Int?>(null)
     val reconnectIn: StateFlow<Int?> = _reconnectIn
+    /** Host is set to use tmux but the server had no tmux: work will not survive a disconnect. */
+    private val _noTmux = MutableStateFlow(false)
+    val noTmux: StateFlow<Boolean> = _noTmux
 
     @Volatile var appCursor = false
     @Volatile var bracketedPaste = false
@@ -117,6 +120,7 @@ class TermSession(host0: Host, private val app: App) {
                     .setPrimaryClip(ClipData.newPlainText("remote", text))
             }
         },
+        onNoTmux = { _noTmux.value = true },
     )
 
     fun updateHost(h: Host) {
@@ -291,10 +295,35 @@ class TermSession(host0: Host, private val app: App) {
     private fun startupCommand(h: Host): String {
         if (!h.tmux) return ""
         val name = h.tmuxSession.ifBlank { "main" }.replace(Regex("[^A-Za-z0-9_.-]"), "_")
-        // POSIX sh. Falls back to a login shell if tmux is missing.
-        return "export MOBILE_TERM=1; " +
-            "if command -v tmux >/dev/null 2>&1; then exec tmux -u new -A -s $name; " +
-            "else echo '[PanoTerm] tmux not found - starting login shell'; exec \"\${SHELL:-/bin/sh}\" -l; fi"
+        return tmuxCommand(name)
+    }
+
+    companion object {
+        /**
+         * Shell command that attaches to (or creates) tmux session [name].
+         *
+         * sshd runs exec commands through the user's shell with a minimal, non-login PATH, so
+         * a tmux from Homebrew / linuxbrew / ~/.local / nix is often invisible. We therefore
+         * look it up via the login shell's PATH and a list of common locations.
+         * Everything runs inside `sh -c '...'` so it works whatever the login shell is (fish, csh...).
+         * The script must not contain single quotes.
+         * If tmux is missing it emits OSC 777;panoterm;notmux so the app can warn the user.
+         */
+        fun tmuxCommand(name: String): String {
+            val script = listOf(
+                "export MOBILE_TERM=1",
+                "T=\$(command -v tmux 2>/dev/null)",
+                "if [ -z \"\$T\" ]; then T=\$(\"\${SHELL:-/bin/sh}\" -lc \"command -v tmux\" </dev/null 2>/dev/null | tail -n 1); fi",
+                "for p in /opt/homebrew/bin/tmux /usr/local/bin/tmux /home/linuxbrew/.linuxbrew/bin/tmux " +
+                    "\"\$HOME/.local/bin/tmux\" \"\$HOME/.nix-profile/bin/tmux\" /run/current-system/sw/bin/tmux /usr/bin/tmux /bin/tmux; do " +
+                    "if [ -z \"\$T\" ] || [ ! -x \"\$T\" ]; then [ -x \"\$p\" ] && T=\$p; fi; done",
+                "if [ -n \"\$T\" ] && [ -x \"\$T\" ]; then exec \"\$T\" -u new -A -s $name; fi",
+                "printf \"\\033]777;panoterm;notmux\\007\"",
+                "echo \"[PanoTerm] tmux를 찾지 못해 일반 셸로 접속했습니다. 연결이 끊기면 실행 중인 작업도 끝나요.\"",
+                "exec \"\${SHELL:-/bin/sh}\" -l",
+            ).joinToString("\n")
+            return "exec sh -c '$script'"
+        }
     }
 
     private fun listener(gen: Int) = object : SessionListener {

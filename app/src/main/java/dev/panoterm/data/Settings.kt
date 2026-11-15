@@ -24,6 +24,8 @@ class Settings(ctx: Context) {
         val keepScreenOn: Boolean = true,
         val approvalOverlay: Boolean = true,
         val twoFingerEsc: Boolean = true,
+        /** WebGL terminal renderer (experimental). */
+        val gpuRender: Boolean = false,
         val updateCheck: Boolean = true,
         /** Download and install new releases automatically (installs only when no session is open). */
         val autoUpdate: Boolean = true,
@@ -48,6 +50,7 @@ class Settings(ctx: Context) {
         keepScreenOn = prefs.getBoolean("keepScreenOn", true),
         approvalOverlay = prefs.getBoolean("approvalOverlay", true),
         twoFingerEsc = prefs.getBoolean("twoFingerEsc", true),
+        gpuRender = prefs.getBoolean("gpuRender", false),
         updateCheck = prefs.getBoolean("updateCheck", true),
         autoUpdate = prefs.getBoolean("autoUpdate", true),
         updateWifiOnly = prefs.getBoolean("updateWifiOnly", true),
@@ -66,6 +69,7 @@ class Settings(ctx: Context) {
             .putBoolean("keepScreenOn", v.keepScreenOn)
             .putBoolean("approvalOverlay", v.approvalOverlay)
             .putBoolean("twoFingerEsc", v.twoFingerEsc)
+            .putBoolean("gpuRender", v.gpuRender)
             .putBoolean("updateCheck", v.updateCheck)
             .putBoolean("autoUpdate", v.autoUpdate)
             .putBoolean("updateWifiOnly", v.updateWifiOnly)

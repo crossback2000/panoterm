@@ -108,6 +108,8 @@ set -ga update-environment MOBILE_TERM
 
 서버가 윈도우면 tmux는 WSL 안에서 쓰셔야 해요.
 
+tmux는 Homebrew(`/opt/homebrew/bin`), linuxbrew, `~/.local/bin`, nix 경로까지 찾아봅니다. 그래도 못 찾으면 화면 위에 노란 경고가 뜨고 일반 셸로 접속돼요. 이 상태에선 연결이 끊기면 실행 중이던 Claude도 같이 끝나니 tmux를 설치해 두세요.
+
 ## 직접 빌드하기
 
 JDK 17, 안드로이드 SDK(platform 35, NDK 포함), Go 1.25 이상이 필요합니다.

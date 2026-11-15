@@ -122,6 +122,11 @@ fun SettingsScreen(
             Toggle("터미널에서 화면 켜짐 유지", null, v.keepScreenOn) { b ->
                 app.settings.update { it.copy(keepScreenOn = b) }
             }
+            Toggle(
+                "GPU 렌더링 (실험적)",
+                "출력이 많을 때 더 부드러워요. 글자가 깨져 보이면 다시 끄세요. 터미널을 다시 열면 적용됩니다.",
+                v.gpuRender,
+            ) { b -> app.settings.update { it.copy(gpuRender = b) } }
 
             Section("업데이트")
             Text("현재 버전 ${dev.panoterm.BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodyMedium)
