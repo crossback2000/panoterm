@@ -8,6 +8,10 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <!-- Self-update from GitHub Releases (the user enables "install unknown apps" once). -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- Lets later self-updates install without a confirmation dialog (Android 12+). -->
+    <uses-permission android:name="android.permission.UPDATE_PACKAGES_WITHOUT_USER_ACTION" />
 
     <application
         android:name=".App"
@@ -16,6 +20,7 @@
         android:roundIcon="@mipmap/ic_launcher"
         android:label="PanoTerm"
         android:supportsRtl="true"
+        android:usesCleartextTraffic="${cleartext}"
         android:theme="@android:style/Theme.Material.NoActionBar">
 
         <!-- configChanges: connecting/disconnecting the K380 or rotating must not recreate the Activity -->
@@ -30,6 +35,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <receiver
+            android:name=".net.UpdateReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
 
         <!-- Keeps SSH sessions (and the embedded Tailscale node) alive in the background. -->
         <service

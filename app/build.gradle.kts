@@ -23,9 +23,22 @@ android {
         applicationId = "dev.panoterm"
         minSdk = 31
         targetSdk = 35
-        versionCode = 110
-        versionName = "1.1.0"
-        ndk { abiFilters += "arm64-v8a" } // Galaxy S25 Ultra
+        // -PvCode / -PvName only for local update testing.
+        versionCode = (project.findProperty("vCode") as String?)?.toInt() ?: 120
+        versionName = (project.findProperty("vName") as String?) ?: "1.2.0"
+        ndk {
+            abiFilters += "arm64-v8a" // Galaxy S25 Ultra
+            // -PwithX86 adds the emulator ABI to any build type (local testing only).
+            if (project.hasProperty("withX86")) abiFilters += "x86_64"
+        }
+
+        // Where the self-updater looks for releases. Overridable for local testing:
+        //   ./gradlew assembleRelease -PupdateApi=http://10.0.2.2:8766/latest.json
+        val updateApi = (project.findProperty("updateApi") as String?)
+            ?: "https://api.github.com/repos/crossback2000/panoterm/releases/latest"
+        buildConfigField("String", "UPDATE_API", "\"$updateApi\"")
+        // Plain HTTP is only allowed when a local test server is used.
+        manifestPlaceholders["cleartext"] = updateApi.startsWith("http://").toString()
     }
 
     signingConfigs {

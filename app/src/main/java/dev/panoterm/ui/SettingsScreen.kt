@@ -41,7 +41,6 @@ fun SettingsScreen(
 ) {
     val v by app.settings.values.collectAsState()
     val ctx = androidx.compose.ui.platform.LocalContext.current
-    val update by app.updates.available.collectAsState()
     var backupMode by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) } // "export" | "import"
     var pendingUri by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<android.net.Uri?>(null) }
 
@@ -126,14 +125,23 @@ fun SettingsScreen(
 
             Section("업데이트")
             Text("현재 버전 ${dev.panoterm.BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodyMedium)
-            update?.let { u ->
-                TextButton(onClick = { ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(u.url))) }) {
-                    Text("새 버전 ${u.version} 받기 →")
-                }
-            }
-            Toggle("새 버전 자동 확인", "GitHub 릴리스를 하루 두 번까지 확인 (보내는 정보 없음)", v.updateCheck) { b ->
+            UpdateCard(app)
+            Toggle("새 버전 확인", "앱을 열 때 GitHub 릴리스를 확인 (6시간에 한 번, 보내는 정보 없음)", v.updateCheck) { b ->
                 app.settings.update { it.copy(updateCheck = b) }
             }
+            Toggle(
+                "자동 업데이트", "새 버전을 알아서 받아서 설치. 열린 세션이 있으면 다 닫은 뒤에 설치해요.",
+                v.autoUpdate && v.updateCheck, enabled = v.updateCheck,
+            ) { b -> app.settings.update { it.copy(autoUpdate = b) } }
+            Toggle(
+                "Wi-Fi에서만 받기", "데이터 요금 아끼기 (APK가 40MB 정도)",
+                v.updateWifiOnly, enabled = v.autoUpdate && v.updateCheck,
+            ) { b -> app.settings.update { it.copy(updateWifiOnly = b) } }
+            Text(
+                "처음 한 번은 'PanoTerm에서 앱 설치 허용'을 켜야 하고, 설치 확인 창이 뜰 수도 있어요. 그다음부터는 확인 없이 설치됩니다. " +
+                    "받은 파일은 지금 앱과 같은 서명인지 확인한 뒤에만 설치해요.",
+                style = MaterialTheme.typography.bodySmall,
+            )
             TextButton(onClick = {
                 app.updates.check(force = true)
                 android.widget.Toast.makeText(ctx, "확인 중…", android.widget.Toast.LENGTH_SHORT).show()

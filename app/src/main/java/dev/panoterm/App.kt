@@ -10,6 +10,7 @@ import dev.panoterm.data.Settings
 import dev.panoterm.net.TailscaleManager
 import dev.panoterm.term.SessionManager
 import java.io.File
+import kotlinx.coroutines.launch
 
 class App : Application() {
     lateinit var hosts: HostRepository
@@ -38,16 +39,23 @@ class App : Application() {
         settings = Settings(this)
         snippets = dev.panoterm.data.Snippets(this)
         updates = dev.panoterm.net.UpdateChecker(this)
-        if (settings.current.updateCheck) updates.check()
         tailscale = TailscaleManager(this)
         sessions = SessionManager(this)
         tailscale.onNetworkAvailable = { sessions.onNetworkAvailable() }
         hosts.onChanged = { sessions.onHostChanged(it) }
         tailscale.start()
 
+        // A downloaded update waits until the last SSH session is closed.
+        kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Main).launch {
+            sessions.sessions.collect { if (it.isEmpty()) updates.maybeAuto() }
+        }
+
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             private var started = 0
-            override fun onActivityStarted(a: Activity) { started++; isForeground = true }
+            override fun onActivityStarted(a: Activity) {
+                started++; isForeground = true
+                if (settings.current.updateCheck) updates.check()
+            }
             override fun onActivityStopped(a: Activity) { started--; isForeground = started > 0 }
             override fun onActivityCreated(a: Activity, b: Bundle?) {}
             override fun onActivityResumed(a: Activity) {}

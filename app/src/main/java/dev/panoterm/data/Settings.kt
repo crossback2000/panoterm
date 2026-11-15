@@ -25,6 +25,9 @@ class Settings(ctx: Context) {
         val approvalOverlay: Boolean = true,
         val twoFingerEsc: Boolean = true,
         val updateCheck: Boolean = true,
+        /** Download and install new releases automatically (installs only when no session is open). */
+        val autoUpdate: Boolean = true,
+        val updateWifiOnly: Boolean = true,
         /** Key ids of the bottom key row, in order. Empty = default. */
         val keyBar: List<String> = emptyList(),
     )
@@ -46,6 +49,8 @@ class Settings(ctx: Context) {
         approvalOverlay = prefs.getBoolean("approvalOverlay", true),
         twoFingerEsc = prefs.getBoolean("twoFingerEsc", true),
         updateCheck = prefs.getBoolean("updateCheck", true),
+        autoUpdate = prefs.getBoolean("autoUpdate", true),
+        updateWifiOnly = prefs.getBoolean("updateWifiOnly", true),
         keyBar = prefs.getString("keyBar", "")!!.split(',').filter { it.isNotBlank() },
     )
 
@@ -62,6 +67,8 @@ class Settings(ctx: Context) {
             .putBoolean("approvalOverlay", v.approvalOverlay)
             .putBoolean("twoFingerEsc", v.twoFingerEsc)
             .putBoolean("updateCheck", v.updateCheck)
+            .putBoolean("autoUpdate", v.autoUpdate)
+            .putBoolean("updateWifiOnly", v.updateWifiOnly)
             .putString("keyBar", v.keyBar.joinToString(","))
             .apply()
         _values.value = v
