@@ -1,92 +1,108 @@
 # PanoTerm
 
-**Claude Code를 폰에서 편하게 쓰기 위한 안드로이드 SSH 터미널.**
-Tailscale 내장 · 넓은 표를 크게 보는 "표 렌즈" · K380 같은 블루투스 키보드 완벽 지원 · 광고/결제/계정/클라우드 없음.
+폰으로 Claude Code 쓰려고 만든 안드로이드 SSH 앱입니다.
 
-> Pano(rama) + Term — 넓은 내용을 좌우로 훑어보는 터미널. 설계 배경은 [DESIGN.md](DESIGN.md).
+갤럭시 S25 울트라로 Claude Code를 자주 쓰는데, Claude가 표를 그리기 시작하면 답이 없더라고요. 글씨를 줄이면 안 보이고, 키우면 표가 줄바꿈돼서 다 깨지고요. 기존 SSH 앱들은 광고가 붙거나 쓸 만한 기능은 유료라서 그냥 직접 만들었습니다. 이름은 파노라마(Panorama) + 터미널입니다. 넓은 화면을 옆으로 밀어 가며 본다는 뜻으로 지었어요.
 
-## 주요 기능
+광고, 결제, 회원가입, 클라우드 동기화는 없습니다. 앞으로도 넣을 생각 없어요.
 
-### 넓은 표·작은 글씨 문제 해결
-- **표 렌즈 (▦)** — 화면 기록에서 Claude가 그린 표(박스 문자 / 마크다운)를 찾아 **큰 글씨의 네이티브 표**로 보여줌. 첫 열 고정 + 좌우 스크롤, 줄바꿈으로 깨진 표도 복원, 마크다운으로 복사. 표가 보이면 화면 우상단에 `▦ 표 N개 크게 보기` 칩이 뜸.
-- **넓게 보기 (↔)** — 서버에는 120/160/200열로 알리고 폰은 읽기 좋은 글씨 크기로 그린 뒤 **손가락으로 좌우 이동**. 표가 줄바꿈 없이 원래 모양대로 나옴.
-- **읽기 모드 (📖)** — Claude의 마지막 응답을 큰 글씨로 다시 흘려 보여줌. 표는 행마다 `▸ 항목: 값` 카드로 변환.
-- **핀치 줌** — 글자 크기만 바꿈 (넓게 모드에서는 열 수 유지 → Claude 화면이 다시 그려지지 않음).
-- **D2Coding 내장** — 한글이 정확히 2칸이라 한글 섞인 표가 어긋나지 않음.
+## 뭐가 다른가요
 
-### Claude Code 작업 흐름
-- **승인 버튼** — "Do you want to proceed?" 같은 선택지를 감지해 큰 버튼(1/2/3/Esc)으로 표시.
-- **알림** — 다른 앱을 보고 있을 때 터미널 벨 / OSC 9 / OSC 777 알림을 안드로이드 알림으로 (설정은 아래).
-- **입력창 (✎)** — 여러 줄 프롬프트를 삼성 키보드·음성 입력으로 편하게 작성 → `보내기 ⏎` / `넣기만`, 호스트별 기록.
-- **이미지 (🖼)** — 갤러리 이미지를 SFTP로 `~/.cache/panoterm/`에 올리고 경로를 프롬프트에 자동 입력.
-- **포트 미리보기 (⇄)** — 서버의 개발 서버(예: 3000번)를 SSH 터널로 폰 브라우저에서 열기.
-- **클립보드 연동** — 서버의 OSC 52(tmux `set-clipboard`)가 폰 클립보드로. URL은 탭해서 열기.
+**표를 크게 볼 수 있어요.**
+화면에 표가 나오면 오른쪽 위에 `▦ 표 N개 크게 보기` 버튼이 뜹니다. 누르면 Claude가 그린 표를 큰 글씨의 진짜 표로 다시 보여줘요. 첫 번째 열은 고정되고 나머지는 옆으로 밀어서 보면 됩니다. 터미널에서 줄바꿈돼 깨진 표도 대부분 원래대로 복원해요.
+
+**화면을 넓게 쓸 수 있어요.**
+위쪽 `↔` 버튼을 누르면 서버에는 120열(160, 200열도 가능)이라고 알려주고, 폰에서는 읽기 편한 글씨 크기 그대로 그립니다. 넘치는 부분은 손가락으로 옆으로 밀어서 보면 돼요. 표가 깨지지 않고 원래 모양으로 나옵니다.
+
+**길게 읽을 땐 읽기 모드로요.**
+`📖` 버튼을 누르면 Claude의 마지막 답변만 큰 글씨로 따로 보여줍니다. 폭이 좁아도 읽기 편하게 표는 행마다 `▸ 항목: 값` 형태로 풀어서 보여줘요.
+
+글꼴은 D2Coding을 넣었습니다. 한글이 정확히 영문 두 칸이라 한글 섞인 표도 줄이 안 틀어져요.
+
+### Claude Code 쓸 때 편한 것들
+
+- "Do you want to proceed?" 같은 선택지가 나오면 아래에 큰 버튼(1, 2, 3, Esc)이 같이 뜹니다. 손가락으로 번호 맞추기 은근 힘들어서 넣었어요.
+- 다른 앱 보고 있을 때 Claude가 입력을 기다리면 알림이 옵니다. 설정 방법은 아래에 있어요.
+- `✎`를 누르면 여러 줄 입력창이 열립니다. 삼성 키보드로 한글 쓰거나 음성 입력하기 편해요.
+- `🖼`로 갤러리 사진을 고르면 서버에 올리고, 그 경로를 프롬프트에 넣어줍니다. 스크린샷 보여주면서 물어볼 때 씁니다.
+- `⇄`로 서버에서 돌고 있는 개발 서버(3000번 포트 같은 거)를 폰 브라우저에서 바로 열 수 있어요.
+- 서버에서 복사한 내용이 폰 클립보드로 넘어옵니다(tmux 설정 필요). 출력에 나온 링크는 눌러서 열면 되고요.
 
 ### 연결
-- **Tailscale 내장** (tsnet, userspace) — 폰에 Tailscale 앱이 없어도 tailnet 접속. VPN 슬롯을 쓰지 않아 다른 VPN과 공존. tailnet 기기 목록에서 바로 호스트 추가.
-- **SSH 키 전용** — Ed25519 생성 / OpenSSH·PEM 가져오기(암호 걸린 키 포함). 개인키는 Android Keystore(StrongBox) AES-GCM으로 암호화. 호스트 키 TOFU 확인.
-- **tmux 자동 연결 + 자동 재연결** — 끊기면 백오프 재시도, 네트워크 복구 시 즉시 재접속, 같은 tmux 세션에 재부착. 백그라운드 유지 서비스.
-- **홈 화면 바로가기** — 호스트를 홈 화면에 고정해 한 번에 접속. 생체인증 잠금(선택).
 
-### 키보드 (K380 등)
+Tailscale이 앱 안에 들어 있어서 폰에 Tailscale 앱을 따로 깔 필요가 없습니다. VPN 자리를 차지하지 않으니 다른 VPN이랑 같이 써도 돼요. 로그인하면 tailnet 기기 목록이 뜨고, 거기서 바로 호스트를 추가할 수 있습니다.
 
-| 입력 | 동작 |
+접속은 SSH 키로만 합니다. 앱에서 Ed25519 키를 만들거나 기존 키를 가져오면 되고, 개인키는 폰의 보안 칩(Keystore)으로 암호화해서 저장해요.
+
+접속하면 tmux 세션에 자동으로 붙습니다. 지하철에서 신호가 끊기거나 와이파이가 바뀌어도 알아서 다시 붙으니 Claude 작업이 날아가지 않아요. 자주 쓰는 서버는 홈 화면에 바로가기로 꺼내둘 수 있고, 원하면 지문 잠금도 걸 수 있습니다.
+
+### 키보드
+
+로지텍 K380 붙여서 쓰는 걸 기준으로 맞췄습니다.
+
+| 키 | 하는 일 |
 |---|---|
-| Shift+Tab | `ESC [ Z` (Claude 모드 전환) |
-| Shift+Enter / Alt+Enter | `ESC CR` (Claude 입력창 줄바꿈) |
-| Ctrl+Backspace | `^W` (단어 삭제) |
-| Shift+Space (설정 가능) | 한/영 전환 — 앱 내장 두벌식 오토마타 |
-| Ctrl+Shift+V / C | 붙여넣기 / 선택 복사 |
-| Ctrl+Shift+F / R / E / W | 표 렌즈 / 읽기 모드 / 입력창 / 넓게 보기 전환 |
+| Shift+Tab | Claude 모드 전환 (`ESC [ Z`) |
+| Shift+Enter, Alt+Enter | Claude 입력창에서 줄바꿈 |
+| Ctrl+Backspace | 단어 지우기 |
+| Shift+Space | 한/영 전환 (설정에서 바꿀 수 있어요) |
+| Ctrl+Shift+V / C | 붙여넣기 / 복사 |
+| Ctrl+Shift+F | 표 크게 보기 |
+| Ctrl+Shift+R | 읽기 모드 |
+| Ctrl+Shift+E | 입력창 |
+| Ctrl+Shift+W | 넓게 보기 전환 |
 | Ctrl+Alt+= / − | 글자 크기 |
-| Ctrl+Alt+T | tmux 키 줄 표시 |
-| Ctrl+Tab / Ctrl+Shift+Tab | 다음 / 이전 세션 |
-| CapsLock (설정) | Ctrl로 사용 |
-| Fn+Esc | (K380 자체) Fn 잠금 → F1–F12를 기본 키로 |
+| Ctrl+Alt+T | tmux 키 줄 보이기/숨기기 |
+| Ctrl+Tab | 다음 세션 |
+| CapsLock | Ctrl로 쓰기 (설정에서 켜기) |
 
-화면 키 줄: `Esc` `⇧Tab` `Esc²` `^C` `Tab` `Ctrl`(고정) `Alt`(고정) `← ↓ ↑ →`(길게 누르면 반복) `/ @ | ~ -` `⌫` `⇧⏎ 줄바꿈` + 오른쪽 고정 **`⏎ Enter`**.
-tmux 줄: `^B` `새 창` `다음` `이전` `확대` `스크롤` `분리` `PgUp` `PgDn` `q`.
+K380은 F1~F12가 기본으로 볼륨 같은 미디어 키라서, Fn+Esc 한 번 눌러서 Fn 잠금을 걸어두는 게 편합니다.
+
+키보드 없이 쓸 때는 화면 아래 키 줄을 쓰면 됩니다. Esc, ⇧Tab, Esc 두 번, ^C, Tab, Ctrl/Alt(한 번 누르면 다음 글자에만 적용), 방향키(누르고 있으면 반복), 자주 쓰는 기호, 줄바꿈이 있고 오른쪽 끝에 큰 Enter가 고정돼 있어요. tmux 줄(^B, 새 창, 다음, 이전, 확대, 스크롤 등)은 켜고 끌 수 있습니다.
 
 ## 설치
 
-1. [Releases](../../releases)에서 `PanoTerm-1.0.0.apk`를 받아 설치 (출처를 알 수 없는 앱 허용).
-2. 앱 실행 → **Tailscale 로그인** → 브라우저에서 승인.
-3. **SSH 키** → Ed25519 생성 → **공개키 복사** → 서버 `~/.ssh/authorized_keys`에 추가.
-4. Tailnet 기기 목록에서 `+ 추가` (또는 `+`) → 사용자·키 선택 → 저장 → 탭하여 접속 → 호스트 키 지문 확인.
+1. [Releases](../../releases)에서 `PanoTerm-1.0.0.apk`를 받아서 설치합니다. "출처를 알 수 없는 앱" 허용이 필요해요. 안드로이드 12 이상만 됩니다.
+2. 앱을 열고 Tailscale 로그인을 누르면 브라우저가 뜹니다. 거기서 승인하면 끝이에요.
+3. `SSH 키`에서 키를 하나 만들고 공개키를 복사해서 서버 `~/.ssh/authorized_keys`에 붙여넣습니다.
+4. tailnet 기기 목록에서 `+ 추가`를 누르고 사용자 이름이랑 키를 고른 다음 저장하면 됩니다. 처음 접속할 때 서버 지문을 한 번 확인해 달라고 나와요.
 
-## 서버 권장 설정
+## 서버 쪽 설정 (추천)
 
-`~/.tmux.conf`
+`~/.tmux.conf`에 이 정도 넣어두면 좋습니다.
+
 ```
 set -g mouse on
-set -g extended-keys on          # Shift+Enter 등 확장 키 전달
-set -g set-clipboard on          # 서버에서 복사 → 폰 클립보드 (OSC 52)
-set -g allow-passthrough on      # 알림(OSC 777) 통과
+set -g extended-keys on          # Shift+Enter 같은 키가 tmux를 통과하게
+set -g set-clipboard on          # 서버에서 복사하면 폰 클립보드로
+set -g allow-passthrough on      # 알림이 tmux를 통과하게
 set -g history-limit 50000
 set -ga update-environment MOBILE_TERM
 ```
 
-`~/.claude/CLAUDE.md` — 폰에서 표 대신 목록으로 답하게:
+폰으로 접속하면 `MOBILE_TERM=1` 환경변수가 붙습니다. `~/.claude/CLAUDE.md`에 아래처럼 적어두면 Claude가 폰에서는 넓은 표 대신 목록으로 답해줘서 훨씬 보기 편해요.
+
 ```
 - If the environment variable MOBILE_TERM is set, I'm on a phone: avoid wide tables,
   prefer short bullet lists and keep lines under ~60 characters.
 ```
 
-**Claude 알림** — [`extras/claude-notify.sh`](extras/claude-notify.sh)를 `~/.claude/`에 복사하고 `chmod +x` 후, 파일 안의 예시대로 `~/.claude/settings.json`의 `Notification` / `Stop` hook에 등록. (또는 Claude Code의 알림 채널을 터미널 벨로 설정해도 PanoTerm이 알림으로 바꿔 줍니다.)
+알림을 받고 싶으면 [`extras/claude-notify.sh`](extras/claude-notify.sh)를 `~/.claude/`에 복사하고 실행 권한(`chmod +x`)을 준 다음, 파일 안에 적힌 대로 `~/.claude/settings.json`의 hook에 등록하면 됩니다. Claude Code 알림을 터미널 벨로 설정해 둬도 알림으로 바꿔서 보여줍니다.
 
-서버가 Windows라면 tmux는 WSL 안에서 사용하세요.
+서버가 윈도우면 tmux는 WSL 안에서 쓰셔야 해요.
 
-## 빌드
+## 직접 빌드하기
 
-필요: JDK 17, Android SDK(platform 35, build-tools 35, NDK), Go 1.25+.
+JDK 17, 안드로이드 SDK(platform 35, NDK 포함), Go 1.25 이상이 필요합니다.
 
 ```powershell
-.\scripts\build-core.ps1        # Go 테스트 → core.aar (arm64 + 에뮬레이터용 amd64)
-.\gradlew assembleDebug         # 디버그 (에뮬레이터 x86_64 포함)
-.\gradlew assembleRelease       # 릴리스 (arm64 전용)
+.\scripts\build-core.ps1        # Go 쪽 테스트 돌리고 core.aar 생성
+.\gradlew assembleDebug         # 디버그 빌드 (에뮬레이터에서도 돌아감)
+.\gradlew assembleRelease       # 릴리스 빌드
 ```
 
-릴리스 서명: 저장소 밖의 `~/.panoterm/keystore.properties`(또는 `$PANOTERM_KEYSTORE_PROPS`)를 읽습니다.
+릴리스 서명 정보는 저장소 밖에 둡니다. `~/.panoterm/keystore.properties`(또는 `PANOTERM_KEYSTORE_PROPS` 환경변수로 지정한 파일)에서 읽어요.
+
 ```
 storeFile=C:/Users/<you>/.panoterm/release.jks
 storePassword=...
@@ -94,36 +110,36 @@ keyAlias=panoterm
 keyPassword=...
 ```
 
-에셋·라이선스: `scripts/fetch-assets.ps1`(xterm.js · D2Coding · 라이선스 전문), `scripts/gen-go-licenses.ps1`(Go 의존성 라이선스 목록 + 금지 라이선스 검사). 결과물은 저장소에 커밋되어 있어 평소엔 실행할 필요 없음.
+xterm.js, D2Coding, 라이선스 파일은 저장소에 이미 들어 있습니다. 버전을 올릴 때만 `scripts/fetch-assets.ps1`을 돌리면 되고, Go 의존성을 바꿨으면 `scripts/gen-go-licenses.ps1`로 라이선스 목록을 다시 만들어 주세요.
 
-## 테스트
+테스트는 이렇게 돌립니다.
 
 ```powershell
-cd core; go test ./...           # 실제 SSH 서버(PTY·SFTP·포워딩)를 띄워 Go 코어 통합 테스트
-.\gradlew testDebugUnitTest      # 한글 오토마타 · 출력 스캐너(벨/OSC) · 링 버퍼
+cd core; go test ./...           # 테스트용 SSH 서버를 띄워서 접속·SFTP·포워딩까지 확인
+.\gradlew testDebugUnitTest      # 한글 입력, 알림 감지, 버퍼 테스트
 ```
 
-## 구조
+## 코드 구조
 
 ```
-core/                  Go 코어 (gomobile → app/libs/core.aar)
-  node.go              Tailscale 내장 (tsnet)
-  ssh.go, extras.go    SSH 세션, keepalive, SFTP 업로드, 로컬 포트 포워딩
-  keys.go              Ed25519 생성 / 키 가져오기
-  netenv.go            안드로이드 네트워크 인터페이스·DNS·기본 경로 주입
+core/                  Go 코어 (gomobile로 app/libs/core.aar를 만듦)
+  node.go              Tailscale (tsnet)
+  ssh.go, extras.go    SSH 세션, 연결 유지, SFTP 업로드, 포트 포워딩
+  keys.go              키 생성/가져오기
+  netenv.go            안드로이드 네트워크 정보를 Go에 넘겨주는 부분
 app/src/main/
-  assets/term/         xterm.js 렌더러 (term.js: 넓게 보기, 핀치, 표 추출, 승인 감지) + D2Coding
-  assets/licenses/     서드파티 라이선스 전문
-  java/dev/panoterm/
-    data/              호스트 · 키(Keystore 암호화) · known_hosts · 설정
-    net/               TailscaleManager
-    term/              세션 · 키 인코더 · 한글 오토마타 · 출력 스캐너 · 백그라운드 서비스
-    ui/                화면 (호스트, 키, 터미널, 표 렌즈, 읽기, 설정, 라이선스)
-extras/                서버 쪽 도우미 (Claude 알림 hook)
+  assets/term/         xterm.js 화면 (넓게 보기, 핀치 줌, 표 찾기, 승인 버튼 감지) + D2Coding
+  assets/licenses/     오픈소스 라이선스 원문
+  java/dev/panoterm/   안드로이드 앱 (Kotlin, Compose)
+extras/                서버에 두는 스크립트 (Claude 알림)
 ```
+
+## 아직 확인 못 한 것
+
+에뮬레이터와 테스트 서버로는 다 돌려봤는데, 실제 S25 울트라에 K380 붙여서 제 tailnet에 붙는 건 아직 못 해봤습니다. 이상한 점 있으면 이슈로 알려주세요.
 
 ## 라이선스
 
-PanoTerm: [MIT](LICENSE). 서드파티 구성요소는 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) 참고.
+PanoTerm 코드는 [MIT](LICENSE)입니다. 같이 들어 있는 폰트나 라이브러리는 각자 라이선스를 따르고, [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)에 정리해 뒀어요.
 
-"Tailscale"은 Tailscale Inc.의, "Claude"는 Anthropic의 상표이며 이 프로젝트는 이들과 무관합니다.
+Tailscale은 Tailscale Inc., Claude는 Anthropic의 상표입니다. 이 프로젝트는 두 회사와 아무 관계 없는 개인 프로젝트예요.
