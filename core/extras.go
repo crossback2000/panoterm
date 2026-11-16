@@ -4,6 +4,7 @@ package core
 // (preview a dev server running on the remote host in the phone's browser).
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/pkg/sftp"
+	"golang.org/x/crypto/ssh"
 )
 
 // UploadFile stores data under ~/.cache/panoterm/ on the server and returns the
@@ -56,6 +58,60 @@ func (s *Session) UploadFile(name string, data []byte) (string, error) {
 		return abs, nil
 	}
 	return p, nil
+}
+
+// Exec runs a command on the server over a separate channel (no PTY, nothing shows
+// in the terminal) and returns its stdout, capped at 256 KB. A non-zero exit status is
+// not an error. Used for autocomplete lookups (directory listings, command names).
+func (s *Session) Exec(command string, timeoutMs int) (string, error) {
+	sess, err := s.client.NewSession()
+	if err != nil {
+		return "", err
+	}
+	defer sess.Close()
+	out := &capWriter{max: 256 << 10}
+	sess.Stdout = out
+	done := make(chan error, 1)
+	go func() { done <- sess.Run(command) }()
+	if timeoutMs <= 0 {
+		timeoutMs = 4000
+	}
+	select {
+	case err := <-done:
+		var exitErr *ssh.ExitError
+		if err != nil && !errors.As(err, &exitErr) {
+			return out.String(), err
+		}
+		return out.String(), nil
+	case <-time.After(time.Duration(timeoutMs) * time.Millisecond):
+		sess.Signal(ssh.SIGKILL)
+		return out.String(), errors.New("timeout")
+	}
+}
+
+type capWriter struct {
+	mu  sync.Mutex
+	buf []byte
+	max int
+}
+
+func (w *capWriter) Write(p []byte) (int, error) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	if room := w.max - len(w.buf); room > 0 {
+		if len(p) > room {
+			w.buf = append(w.buf, p[:room]...)
+		} else {
+			w.buf = append(w.buf, p...)
+		}
+	}
+	return len(p), nil
+}
+
+func (w *capWriter) String() string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return string(w.buf)
 }
 
 type forwards struct {

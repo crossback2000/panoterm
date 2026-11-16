@@ -124,6 +124,12 @@ class TerminalWebView(ctx: Context) : WebView(ctx) {
 
     fun selectionText(cb: (String) -> Unit) = evaluateJavascript("getSelectionText()") { cb(jsString(it)) }
 
+    /** Current input line up to the cursor (for autocomplete). */
+    fun inputLine(cb: (String) -> Unit) {
+        if (!ready) return
+        evaluateJavascript("getInputLine()") { cb(jsString(it)) }
+    }
+
     fun readerText(lastResponseOnly: Boolean, cb: (String) -> Unit) =
         evaluateJavascript("getReaderText('${if (lastResponseOnly) "last" else "recent"}')") { cb(jsString(it)) }
 

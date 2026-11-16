@@ -24,6 +24,8 @@ class Settings(ctx: Context) {
         val keepScreenOn: Boolean = true,
         val approvalOverlay: Boolean = true,
         val twoFingerEsc: Boolean = true,
+        /** Autocomplete bubbles (Claude slash commands, paths, command names). */
+        val autocomplete: Boolean = true,
         /** Terminal renderer: auto (WebGL on hardware GPU, else Canvas) | webgl | canvas | dom. */
         val renderer: String = "auto",
         val updateCheck: Boolean = true,
@@ -50,6 +52,7 @@ class Settings(ctx: Context) {
         keepScreenOn = prefs.getBoolean("keepScreenOn", true),
         approvalOverlay = prefs.getBoolean("approvalOverlay", true),
         twoFingerEsc = prefs.getBoolean("twoFingerEsc", true),
+        autocomplete = prefs.getBoolean("autocomplete", true),
         renderer = prefs.getString("renderer", "auto")!!,
         updateCheck = prefs.getBoolean("updateCheck", true),
         autoUpdate = prefs.getBoolean("autoUpdate", true),
@@ -59,10 +62,15 @@ class Settings(ctx: Context) {
 
     /** v1.2.2 slimmed the key row; drop the removed keys from a row the user had customised (once). */
     private fun migrateKeyBar(ids: List<String>): List<String> {
-        if (ids.isEmpty() || prefs.getBoolean("keybar_v122", false)) return ids
-        val removed = setOf("stab", "esc2", "ctrlc", "tab", "ctrl", "alt", "at", "pipe", "tilde", "dash", "nl")
-        val next = ids.filterNot { it in removed }
-        prefs.edit().putBoolean("keybar_v122", true).putString("keyBar", next.joinToString(",")).apply()
+        if (ids.isEmpty()) return ids
+        var next = ids
+        if (!prefs.getBoolean("keybar_v122", false)) {
+            val removed = setOf("stab", "esc2", "ctrlc", "tab", "ctrl", "alt", "at", "pipe", "tilde", "dash", "nl")
+            next = next.filterNot { it in removed }
+        }
+        // v1.3.0: Tab goes back in, as the leftmost key.
+        if (!prefs.getBoolean("keybar_tab_v130", false) && "tab" !in next) next = listOf("tab") + next
+        prefs.edit().putBoolean("keybar_v122", true).putBoolean("keybar_tab_v130", true).putString("keyBar", next.joinToString(",")).apply()
         return next
     }
 
@@ -78,6 +86,7 @@ class Settings(ctx: Context) {
             .putBoolean("keepScreenOn", v.keepScreenOn)
             .putBoolean("approvalOverlay", v.approvalOverlay)
             .putBoolean("twoFingerEsc", v.twoFingerEsc)
+            .putBoolean("autocomplete", v.autocomplete)
             .putString("renderer", v.renderer)
             .putBoolean("updateCheck", v.updateCheck)
             .putBoolean("autoUpdate", v.autoUpdate)

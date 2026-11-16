@@ -103,6 +103,12 @@ fun TerminalScreen(
     val webView = remember(session.id) { TerminalWebView(ctx) }
     val input = remember(session.id) { TerminalInputView(ctx) }
     val main = remember { Handler(Looper.getMainLooper()) }
+    val completer = remember(session.id) {
+        dev.panoterm.term.Completer(session) { cb -> webView.inputLine(cb) }.apply {
+            enabled = { app.settings.current.autocomplete }
+        }
+    }
+    val suggestions by completer.suggestions.collectAsState()
 
     fun persist(f: (dev.panoterm.data.Host) -> dev.panoterm.data.Host) {
         app.hosts.get(session.host.id)?.let { app.hosts.upsert(f(it)) }
@@ -184,6 +190,7 @@ fun TerminalScreen(
     DisposableEffect(session.id) {
         input.onBytes = { b ->
             session.send(b)
+            completer.onUserInput(b)
             if (fixedCols > 0) main.post { webView.followCursor() }
         }
         input.appCursor = { session.appCursor }
@@ -223,6 +230,7 @@ fun TerminalScreen(
         input.requestFocus()
 
         onDispose {
+            completer.dispose()
             session.detach()
             if (activity.keyTarget === input) activity.keyTarget = null
             if (app.visibleSessionId == session.id) app.visibleSessionId = null
@@ -342,6 +350,12 @@ fun TerminalScreen(
                 ApprovalBar(p, onChoose = { n -> session.send(n) }, onEsc = { session.send("\u001b") })
             }
 
+            if (settings.autocomplete && suggestions.isNotEmpty()) {
+                SuggestionBar(suggestions) { s ->
+                    session.send(s.insert)
+                    completer.onUserInput(s.insert.toByteArray()) // look again (e.g. inside the chosen folder)
+                }
+            }
             KeyBar(keys = keysFor(settings.keyBar), showTmux = showTmux, ctrlOn = ctrlOn, altOn = altOn) { k ->
                 when (k) {
                     is BarKey.Text -> input.sendText(k.text)

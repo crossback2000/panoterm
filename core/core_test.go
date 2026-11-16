@@ -132,6 +132,16 @@ func (ts *testServer) session(ch ssh.Channel, reqs <-chan *ssh.Request) {
 			r.Reply(true, nil)
 		case "shell", "exec":
 			r.Reply(true, nil)
+			if r.Type == "exec" {
+				var c struct{ Cmd string }
+				ssh.Unmarshal(r.Payload, &c)
+				if strings.HasPrefix(c.Cmd, "say ") { // one-shot command for Session.Exec
+					ch.Write([]byte(strings.TrimPrefix(c.Cmd, "say ") + "\n"))
+					ch.SendRequest("exit-status", false, ssh.Marshal(struct{ Status uint32 }{3}))
+					ch.Close()
+					return
+				}
+			}
 			go func() {
 				ch.Write([]byte("ready\r\n"))
 				buf := make([]byte, 1024)
@@ -386,6 +396,18 @@ func TestSessionEndToEnd(t *testing.T) {
 	s.StopForward(local)
 	if _, err := net.DialTimeout("tcp", "127.0.0.1:"+fmtInt(local), time.Second); err == nil {
 		t.Fatal("forward still listening after StopForward")
+	}
+
+	// Side-channel exec (autocomplete): output comes back, non-zero exit is not an error,
+	// and nothing leaks into the interactive terminal.
+	before := func() string { c.mu.Lock(); defer c.mu.Unlock(); return c.buf.String() }()
+	got2, err := s.Exec("say service/ server-logs/", 3000)
+	if err != nil || got2 != "service/ server-logs/\n" {
+		t.Fatalf("exec: %q %v", got2, err)
+	}
+	time.Sleep(100 * time.Millisecond)
+	if after := func() string { c.mu.Lock(); defer c.mu.Unlock(); return c.buf.String() }(); after != before {
+		t.Fatal("exec output leaked into the terminal stream")
 	}
 
 	s.Close()

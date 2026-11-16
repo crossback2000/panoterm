@@ -24,8 +24,8 @@ android {
         minSdk = 31
         targetSdk = 35
         // -PvCode / -PvName only for local update testing.
-        versionCode = (project.findProperty("vCode") as String?)?.toInt() ?: 122
-        versionName = (project.findProperty("vName") as String?) ?: "1.2.2"
+        versionCode = (project.findProperty("vCode") as String?)?.toInt() ?: 130
+        versionName = (project.findProperty("vName") as String?) ?: "1.3.0"
         ndk {
             abiFilters += "arm64-v8a" // Galaxy S25 Ultra
             // -PwithX86 adds the emulator ABI to any build type (local testing only).

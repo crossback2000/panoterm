@@ -93,8 +93,52 @@ val ALL_KEYS: List<BarKey> = listOf(
 )
 
 val DEFAULT_KEY_IDS = listOf(
-    "esc", "pad", "left", "down", "up", "right", "palette", "slash", "bs",
+    "tab", "esc", "pad", "left", "down", "up", "right", "palette", "slash", "bs",
 )
+
+/**
+ * Autocomplete bubbles shown right above the key row. Tapping one types the rest of
+ * the word. Uses raw pointer input (like the keys) so the soft keyboard stays open.
+ */
+@Composable
+fun SuggestionBar(items: List<dev.panoterm.term.Suggestion>, onPick: (dev.panoterm.term.Suggestion) -> Unit) {
+    val fire by rememberUpdatedState(onPick)
+    val view = LocalView.current
+    Row(
+        Modifier.fillMaxWidth().background(Color(0xFF101014)).horizontalScroll(rememberScrollState()).padding(horizontal = 4.dp, vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        items.forEach { s ->
+            var pressed by remember(s) { mutableStateOf(false) }
+            Box(
+                Modifier
+                    .padding(horizontal = 3.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(if (pressed) Color(0xFF80CBC4) else Color(0xFF263238))
+                    .pointerInput(s) {
+                        awaitEachGesture {
+                            awaitFirstDown(requireUnconsumed = false)
+                            pressed = true
+                            val up = waitForUpOrCancellation()
+                            pressed = false
+                            if (up != null) {
+                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                fire(s)
+                            }
+                        }
+                    }
+                    .padding(horizontal = 12.dp, vertical = 7.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(s.label, color = Color(0xFFE0F2F1), fontSize = 15.sp, maxLines = 1)
+                    if (s.hint.isNotEmpty()) {
+                        Text("  " + s.hint, color = Color(0xFF80CBC4), fontSize = 12.sp, maxLines = 1)
+                    }
+                }
+            }
+        }
+    }
+}
 
 fun keysFor(ids: List<String>): List<BarKey> {
     val byId = ALL_KEYS.associateBy { it.id }

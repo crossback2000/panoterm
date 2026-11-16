@@ -308,6 +308,20 @@ function start() {
   };
   window.getSelectionText = function () { return term.getSelection(); };
 
+  // Text of the current input line up to the cursor (soft-wrapped rows joined): used by
+  // the autocomplete to see what is being typed.
+  window.getInputLine = function () {
+    const buf = term.buffer.active;
+    const y = buf.baseY + buf.cursorY;
+    let start = y;
+    while (start > 0 && buf.getLine(start) && buf.getLine(start).isWrapped) start--;
+    let s = '';
+    for (let i = start; i < y; i++) { const l = buf.getLine(i); if (l) s += l.translateToString(false); }
+    const cur = buf.getLine(y);
+    if (cur) s += cur.translateToString(false, 0, buf.cursorX);
+    return s;
+  };
+
   // ---------- buffer helpers ----------
 
   // Logical lines (soft-wrapped rows joined) in [from, to) buffer rows.

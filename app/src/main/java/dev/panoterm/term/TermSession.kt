@@ -397,6 +397,19 @@ class TermSession(
 
     // ---- extras ----
 
+    /** tmux session name if this connection runs inside tmux, else null. */
+    fun tmuxName(): String? =
+        if (host.tmux && !_noTmux.value && label == null) host.tmuxSession.ifBlank { "main" }.replace(Regex("[^A-Za-z0-9_.-]"), "_") else null
+
+    /**
+     * Runs [command] on the server over a separate channel (nothing appears in the terminal).
+     * Blocking; call off the main thread. Returns null when not connected or on error.
+     */
+    fun execQuiet(command: String, timeoutMs: Int = 3000): String? {
+        val s = go ?: return null
+        return runCatching { s.exec(command, timeoutMs.toLong()) }.getOrNull()
+    }
+
     /** Uploads [data] via SFTP to ~/.cache/panoterm/ and returns the remote path through [done]. */
     fun upload(name: String, data: ByteArray, done: (Result<String>) -> Unit) {
         val s = go ?: return done(Result.failure(IllegalStateException("연결되어 있지 않습니다")))

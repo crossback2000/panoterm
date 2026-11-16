@@ -113,6 +113,9 @@ fun SettingsScreen(
             )
 
             Section("Claude Code")
+            Toggle("입력 자동완성", "/ 누르면 Claude 명령, cd ser 하면 service/ 같은 후보를 말풍선으로 보여줘요", v.autocomplete) { b ->
+                app.settings.update { it.copy(autocomplete = b) }
+            }
             Toggle("승인 버튼 표시", "\"Do you want to proceed?\" 같은 선택지를 큰 버튼으로", v.approvalOverlay) { b ->
                 app.settings.update { it.copy(approvalOverlay = b) }
             }
