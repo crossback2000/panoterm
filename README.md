@@ -147,6 +147,20 @@ cd core; go test ./...           # 테스트용 SSH 서버를 띄워서 접속·
 .\gradlew testDebugUnitTest      # 한글 입력, 알림 감지, 버퍼 테스트
 ```
 
+### GitHub Actions로 빌드·배포
+
+PC 없이도 개발을 이어갈 수 있게 빌드랑 배포는 GitHub Actions가 합니다. 리눅스(ARM 포함)에서는 `scripts/build-core.sh`를 쓰면 되는데, 구글이 NDK를 x86_64용으로만 내놓기 때문에 ARM 리눅스에서는 APK까지 만들 수는 없어요. 그래서 이렇게 씁니다.
+
+- 코드 고치고 `cd core && go test ./...` 정도만 로컬에서 돌린 뒤 push
+- push하면 `CI` 워크플로가 Go 테스트, 앱 단위 테스트, 디버그 빌드를 돌림
+- 배포는 `release-notes/vX.Y.Z.md` 쓰고 커밋한 다음 `git tag vX.Y.Z && git push origin vX.Y.Z`
+  → `Release` 워크플로가 서명된 APK를 만들어서 릴리스에 올리고, 폰은 자동 업데이트로 받아감
+- Actions 탭에서 `Release`를 수동 실행하면 배포 없이 빌드·서명만 확인해 봅니다 (APK는 7일간 artifact로 남음)
+
+서명 키는 저장소에 없습니다. 저장소 설정의 암호화된 Secrets(`PANOTERM_KEYSTORE_B64`, `PANOTERM_STORE_PASSWORD`, `PANOTERM_KEY_ALIAS`, `PANOTERM_KEY_PASSWORD`)에만 있고, 포크에서 온 PR에는 전달되지 않아요. 릴리스 워크플로는 APK 서명 인증서가 기존 것과 같은지 확인하고, 다르면 실패하게 해 뒀습니다. 키가 바뀌면 기존 설치본이 업데이트를 못 받거든요.
+
+포크해서 직접 배포하려면 키를 새로 만들어서 위 Secrets에 넣고, `release.yml`의 `EXPECTED_CERT_SHA256`를 본인 인증서 값으로 바꾸면 됩니다.
+
 ## 코드 구조
 
 ```

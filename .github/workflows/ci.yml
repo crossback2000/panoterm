@@ -1,0 +1,42 @@
+# Tests on every push / pull request. Uses no secrets (safe for pull requests from forks).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: core/go.mod
+          cache-dependency-path: core/go.sum
+
+      - name: Go tests
+        working-directory: core
+        run: go test -count=1 ./...
+
+      - name: Android SDK packages
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install \
+            "platforms;android-35" "build-tools;35.0.0" "ndk;29.0.14206865" > /dev/null
+
+      - name: Build Go core (core.aar)
+        run: bash scripts/build-core.sh
+
+      - name: Unit tests + debug build
+        run: bash ./gradlew --no-daemon testDebugUnitTest assembleDebug
