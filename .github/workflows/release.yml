@@ -28,14 +28,14 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: core/go.mod
           cache-dependency-path: core/go.sum
@@ -46,7 +46,7 @@ jobs:
           if [ "$GITHUB_REF_TYPE" = "tag" ]; then
             V="${GITHUB_REF_NAME#v}"
           else
-            V="0.0.0-dryrun.${GITHUB_RUN_NUMBER}"
+            V="0.0.${GITHUB_RUN_NUMBER}-dryrun"
           fi
           IFS=. read -r MA MI PA <<< "${V%%-*}"
           echo "name=$V" >> "$GITHUB_OUTPUT"
@@ -107,7 +107,7 @@ jobs:
 
       - name: Keep APK (dry run)
         if: github.ref_type != 'tag'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: PanoTerm-${{ steps.ver.outputs.name }}
           path: PanoTerm-*.apk
