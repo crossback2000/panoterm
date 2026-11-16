@@ -94,6 +94,7 @@ fun TerminalScreen(
     var sessionMenu by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
     var paletteOpen by remember { mutableStateOf(false) }
+    var hasSelection by remember { mutableStateOf(false) }
     val snippets by app.snippets.items.collectAsState()
 
     @Composable
@@ -215,6 +216,10 @@ fun TerminalScreen(
             override fun onOpenUrl(url: String) { openUrl(url) }
             override fun onPrompt(p: ApprovalPrompt?) { prompt = p }
             override fun onTables(count: Int) { tableCount = count }
+            override fun onSelectStart() {
+                view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+            }
+            override fun onSelection(active: Boolean) { hasSelection = active }
             override fun onGesture(name: String) {
                 // Two-finger swipe left = Esc (interrupt Claude).
                 if (name == "swipe-left" && app.settings.current.twoFingerEsc) {
@@ -332,8 +337,30 @@ fun TerminalScreen(
                 AndroidView(factory = { webView }, modifier = Modifier.fillMaxSize())
                 // Invisible focus holder for keyboard input.
                 AndroidView(factory = { input }, modifier = Modifier.size(1.dp))
-                if (tableCount > 0 && overlay == Overlay.NONE) {
+                if (tableCount > 0 && overlay == Overlay.NONE && !hasSelection) {
                     Box(Modifier.align(Alignment.TopEnd)) { TablesChip(tableCount) { openLens() } }
+                }
+                if (hasSelection) {
+                    // Copy bar for the long-press selection.
+                    Row(
+                        Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp)
+                            .background(Color(0xEE263238), androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
+                            .padding(horizontal = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        TextButton(onClick = {
+                            webView.selectionText { t ->
+                                if (t.isNotEmpty()) {
+                                    ctx.getSystemService(ClipboardManager::class.java)
+                                        .setPrimaryClip(ClipData.newPlainText("terminal", t.trimEnd()))
+                                    Toast.makeText(ctx, "복사했습니다", Toast.LENGTH_SHORT).show()
+                                }
+                                webView.clearSelectionText()
+                            }
+                        }) { Text("복사", color = Color.White) }
+                        TextButton(onClick = { webView.selectAllText() }) { Text("전체 선택", color = Color(0xFF80CBC4)) }
+                        TextButton(onClick = { webView.clearSelectionText() }) { Text("취소", color = Color(0xFFB0BEC5)) }
+                    }
                 }
             }
 

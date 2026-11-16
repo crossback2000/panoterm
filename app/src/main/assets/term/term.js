@@ -193,6 +193,60 @@ function start() {
     fling = requestAnimationFrame(step);
   }
 
+  // ---------- long-press text selection ----------
+  // xterm.js has no touch selection. Long-press selects the word under the finger,
+  // dragging (without lifting) extends it, and the edges auto-scroll.
+  const LONG_PRESS_MS = 380; // a bit under Android's 400 ms long-press, so hold-then-drag selects
+  let sel = null, pressTimer = 0, pressPoint = null;
+
+  function cellAt(t) {
+    const sc = screenNode();
+    const r = sc.getBoundingClientRect();
+    const col = Math.max(0, Math.min(term.cols - 1, Math.floor((t.clientX - r.left) / (r.width / term.cols))));
+    const vr = Math.max(0, Math.min(term.rows - 1, Math.floor((t.clientY - r.top) / (r.height / term.rows))));
+    return { col: col, row: term.buffer.active.viewportY + vr, vr: vr };
+  }
+  function isWordCell(line, x) {
+    const c = line.getCell(x);
+    if (!c) return false;
+    const ch = c.getChars();
+    if (ch === '') return c.getWidth() === 0; // right half of a wide (Korean) char
+    return !/\s/.test(ch);
+  }
+  function wordAt(p) {
+    const line = term.buffer.active.getLine(p.row);
+    if (!line || !isWordCell(line, p.col)) return { s: p, e: p };
+    let s = p.col, e = p.col;
+    while (s > 0 && isWordCell(line, s - 1)) s--;
+    while (e < term.cols - 1 && isWordCell(line, e + 1)) e++;
+    return { s: { col: s, row: p.row }, e: { col: e, row: p.row } };
+  }
+  function before(a, b) { return a.row < b.row || (a.row === b.row && a.col < b.col); }
+  function selectRange(s, e) {
+    term.select(s.col, s.row, (e.row - s.row) * term.cols + (e.col - s.col) + 1);
+  }
+  function beginSelect() {
+    pressTimer = 0;
+    if (!pressPoint || (pan && pan.dir)) return;
+    stopFling(); setOffset(0);
+    const w = wordAt(cellAt(pressPoint));
+    sel = { a: w.s, b: w.e };
+    selectRange(w.s, w.e);
+    pan = null;
+    Bridge.onSelectStart();
+  }
+  function extendSelect(t) {
+    const p = cellAt(t);
+    if (p.vr === 0) term.scrollLines(-1);
+    else if (p.vr === term.rows - 1) term.scrollLines(1);
+    if (before(p, sel.a)) selectRange(p, sel.b);
+    else if (before(sel.b, p)) selectRange(sel.a, p);
+    else selectRange(sel.a, sel.b);
+  }
+  window.selectAllText = function () { term.selectAll(); };
+  window.clearSelectionText = function () { term.clearSelection(); };
+  term.onSelectionChange(function () { Bridge.onSelection(term.hasSelection()); });
+
   let pinch = null, pan = null;
   function dist(e) {
     const a = e.touches[0], b = e.touches[1];
@@ -210,7 +264,11 @@ function start() {
       // Continue from the current sub-line offset so catching a fling doesn't jump.
       pan = { x: t.clientX, y: t.clientY, sl: wrap.scrollLeft, dir: null, lastY: t.clientY, acc: offsetPx, samples: [] };
       wheelPos = touchToCell(t);
+      pressPoint = { clientX: t.clientX, clientY: t.clientY };
+      clearTimeout(pressTimer);
+      pressTimer = setTimeout(beginSelect, LONG_PRESS_MS);
     }
+    if (e.touches.length !== 1) { clearTimeout(pressTimer); pressTimer = 0; }
   }, { capture: true, passive: false });
 
   wrap.addEventListener('touchmove', function (e) {
@@ -223,9 +281,17 @@ function start() {
       e.preventDefault(); e.stopPropagation();
       return;
     }
+    if (sel && e.touches.length === 1) {
+      extendSelect(e.touches[0]);
+      e.preventDefault(); e.stopPropagation();
+      return;
+    }
     if (pan && e.touches.length === 1) {
       const dx = e.touches[0].clientX - pan.x, dy = e.touches[0].clientY - pan.y;
-      if (!pan.dir && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) pan.dir = Math.abs(dx) > Math.abs(dy) ? 'h' : 'v';
+      if (!pan.dir && (Math.abs(dx) > 10 || Math.abs(dy) > 10)) {
+        pan.dir = Math.abs(dx) > Math.abs(dy) ? 'h' : 'v';
+        clearTimeout(pressTimer); pressTimer = 0; // it's a scroll, not a long-press
+      }
       if (pan.dir === 'h' && fixedCols > 0) {
         wrap.scrollLeft = pan.sl - dx;
         e.preventDefault(); e.stopPropagation();
@@ -248,6 +314,13 @@ function start() {
   }, { capture: true, passive: false });
 
   wrap.addEventListener('touchend', function (e) {
+    clearTimeout(pressTimer); pressTimer = 0;
+    if (sel && e.touches.length === 0) {
+      sel = null; pan = null;
+      Bridge.onSelection(term.hasSelection());
+      e.preventDefault(); e.stopPropagation();
+      return;
+    }
     if (pinch && e.touches.length < 2) {
       el.style.transform = '';
       const p = pinch;

@@ -38,6 +38,10 @@ class TerminalWebView(ctx: Context) : WebView(ctx) {
         fun onPrompt(prompt: ApprovalPrompt?)
         fun onTables(count: Int)
         fun onGesture(name: String)
+        /** Long-press started a text selection (for haptic feedback). */
+        fun onSelectStart()
+        /** Whether some text is currently selected (drives the copy bar). */
+        fun onSelection(active: Boolean)
     }
 
     private val main = Handler(Looper.getMainLooper())
@@ -78,6 +82,9 @@ class TerminalWebView(ctx: Context) : WebView(ctx) {
 
     fun bind(fontSize: Int, fixedCols: Int, renderer: String, cb: Callbacks) {
         addJavascriptInterface(Bridge(cb), "Bridge")
+        // The page does its own long-press selection; suppress the WebView's native one.
+        setOnLongClickListener { true }
+        isHapticFeedbackEnabled = false
         setOnTouchListener { _, e ->
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> { downX = e.x; downY = e.y; downT = e.eventTime; multiTouch = false }
@@ -123,6 +130,8 @@ class TerminalWebView(ctx: Context) : WebView(ctx) {
         if (json == null || json == "null") "" else runCatching { JSONArray("[$json]").optString(0) }.getOrDefault("")
 
     fun selectionText(cb: (String) -> Unit) = evaluateJavascript("getSelectionText()") { cb(jsString(it)) }
+    fun selectAllText() = js("selectAllText()")
+    fun clearSelectionText() = js("clearSelectionText()")
 
     /** Current input line up to the cursor (for autocomplete). */
     fun inputLine(cb: (String) -> Unit) {
@@ -182,6 +191,12 @@ class TerminalWebView(ctx: Context) : WebView(ctx) {
 
         @JavascriptInterface
         fun onGesture(name: String) = main.post { cb.onGesture(name) }
+
+        @JavascriptInterface
+        fun onSelectStart() = main.post { cb.onSelectStart() }
+
+        @JavascriptInterface
+        fun onSelection(active: Boolean) = main.post { cb.onSelection(active) }
 
         @JavascriptInterface
         fun onPrompt(json: String) {

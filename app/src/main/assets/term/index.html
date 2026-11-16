@@ -9,6 +9,8 @@
     @font-face { font-family: "D2Coding"; src: url("fonts/D2Coding-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; }
     @font-face { font-family: "D2Coding"; src: url("fonts/D2Coding-Bold.ttf") format("truetype"); font-weight: 700; font-style: normal; }
     html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+    /* Our own long-press selection replaces the browser's (which can't select canvas text anyway). */
+    body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
     /* #wrap scrolls horizontally in wide-viewport mode; #t is the xterm host. */
     /* explicit edges + height: some WebView builds ignore the `inset` shorthand */
     /* Anchored to the viewport (not body %) — body height can collapse to 0 in some WebViews. */
