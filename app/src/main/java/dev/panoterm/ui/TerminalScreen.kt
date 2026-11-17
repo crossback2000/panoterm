@@ -42,6 +42,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.style.TextOverflow
@@ -362,27 +363,36 @@ fun TerminalScreen(
                         TextButton(onClick = { webView.clearSelectionText() }) { Text("취소", color = Color(0xFFB0BEC5)) }
                     }
                 }
-            }
+                // Bars that come and go while typing are drawn over the terminal instead of
+                // taking layout height: resizing the terminal makes Claude Code repaint its whole
+                // screen (and, done once per keystroke, duplicated lines in scrollback). The page
+                // shifts its rows up by this height so the input line stays visible.
+                Column(
+                    Modifier.align(Alignment.BottomCenter).fillMaxWidth()
+                        .onSizeChanged { webView.setBottomInset(it.height) },
+                ) {
+                    if (composing.isNotEmpty()) {
+                        Text(
+                            composing,
+                            color = Color.Black, fontSize = 16.sp,
+                            modifier = Modifier.fillMaxWidth().background(Color(0xFFFFF59D)).padding(horizontal = 8.dp, vertical = 2.dp),
+                        )
+                    }
 
-            if (composing.isNotEmpty()) {
-                Text(
-                    composing,
-                    color = Color.Black, fontSize = 16.sp,
-                    modifier = Modifier.fillMaxWidth().background(Color(0xFFFFF59D)).padding(horizontal = 8.dp, vertical = 2.dp),
-                )
-            }
+                    val p = prompt
+                    if (p != null && settings.approvalOverlay) {
+                        ApprovalBar(p, onChoose = { n -> session.send(n) }, onEsc = { session.send("\u001b") })
+                    }
 
-            val p = prompt
-            if (p != null && settings.approvalOverlay) {
-                ApprovalBar(p, onChoose = { n -> session.send(n) }, onEsc = { session.send("\u001b") })
-            }
-
-            if (settings.autocomplete && suggestions.isNotEmpty()) {
-                SuggestionBar(suggestions) { s ->
-                    session.send(s.insert)
-                    completer.onUserInput(s.insert.toByteArray()) // look again (e.g. inside the chosen folder)
+                    if (settings.autocomplete && suggestions.isNotEmpty()) {
+                        SuggestionBar(suggestions) { s ->
+                            session.send(s.insert)
+                            completer.onUserInput(s.insert.toByteArray()) // look again (e.g. inside the chosen folder)
+                        }
+                    }
                 }
             }
+
             KeyBar(keys = keysFor(settings.keyBar), showTmux = showTmux, ctrlOn = ctrlOn, altOn = altOn) { k ->
                 when (k) {
                     is BarKey.Text -> input.sendText(k.text)

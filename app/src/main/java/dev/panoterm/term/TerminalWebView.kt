@@ -125,6 +125,12 @@ class TerminalWebView(ctx: Context) : WebView(ctx) {
     fun setFixedCols(n: Int) = js("setFixedCols($n)")
     fun panBy(pages: Float) = js("panBy($pages)")
     fun followCursor() = js("followCursor()")
+    /** Height (device px) of native bars drawn over the bottom of the terminal. */
+    fun setBottomInset(px: Int) {
+        bottomInsetPx = px
+        js("setBottomInset(${px / resources.displayMetrics.density})")
+    }
+    private var bottomInsetPx = 0
 
     private fun jsString(json: String?): String =
         if (json == null || json == "null") "" else runCatching { JSONArray("[$json]").optString(0) }.getOrDefault("")
@@ -165,6 +171,7 @@ class TerminalWebView(ctx: Context) : WebView(ctx) {
         fun onReady(cols: Int, rows: Int) = main.post {
             ready = true
             if (pending.size() > 0) { scheduled = true; postOnAnimation { flush() } }
+            if (bottomInsetPx > 0) setBottomInset(bottomInsetPx)
             cb.onReady(cols, rows)
         }
 
