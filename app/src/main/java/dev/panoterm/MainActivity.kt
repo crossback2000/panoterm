@@ -19,6 +19,9 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.exclude
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material3.Button
@@ -113,7 +116,9 @@ class MainActivity : FragmentActivity() {
                     Modifier
                         .fillMaxSize()
                         .background(Color.Black)
-                        .windowInsetsPadding(WindowInsets.safeDrawing)
+                        // The keyboard is left out here: the terminal moves with the keyboard
+                        // animation itself (TerminalScreen); other screens pad for it in AppRoot.
+                        .windowInsetsPadding(WindowInsets.safeDrawing.exclude(WindowInsets.ime))
                 ) {
                     val isLocked by locked.collectAsState()
                     if (isLocked) LockScreen { authenticate() } else AppRoot(this@MainActivity)
@@ -229,6 +234,7 @@ private fun AppRoot(activity: MainActivity) {
         }
     }
 
+    Box(if (screen is Screen.Terminal) Modifier.fillMaxSize() else Modifier.fillMaxSize().imePadding()) {
     when (val s = screen) {
         Screen.Hosts -> HostListScreen(
             app = app,
@@ -260,6 +266,7 @@ private fun AppRoot(activity: MainActivity) {
                 onSwitch = { screen = Screen.Terminal(it.id) },
             )
         }
+    }
     }
 
     prompt?.let { HostKeyDialog(it) }

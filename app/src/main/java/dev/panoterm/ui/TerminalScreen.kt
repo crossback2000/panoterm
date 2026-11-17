@@ -18,6 +18,12 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imeAnimationSource
+import androidx.compose.foundation.layout.imeAnimationTarget
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -41,7 +47,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
@@ -334,6 +343,11 @@ fun TerminalScreen(
                 }
             }
 
+            // Terminal + key bar follow the soft keyboard: moved with its animation every
+            // frame, resized once (see followKeyboard). Clipped so rows moved up go under the
+            // top bar instead of over it.
+            Box(Modifier.weight(1f).fillMaxWidth().clipToBounds()) {
+            Column(Modifier.fillMaxSize().followKeyboard()) {
             Box(Modifier.weight(1f).fillMaxWidth()) {
                 AndroidView(factory = { webView }, modifier = Modifier.fillMaxSize())
                 // Invisible focus holder for keyboard input.
@@ -403,6 +417,8 @@ fun TerminalScreen(
                     is BarKey.Pad -> {}
                 }
             }
+            }
+            }
         }
 
         when (overlay) {
@@ -448,6 +464,31 @@ fun TerminalScreen(
             if (s.submit) main.postDelayed({ session.send("\r") }, 60)
         }
     }
+}
+
+/**
+ * Keeps the bottom of this content on top of the soft keyboard the way chat apps do
+ * (developer.android.com, "Synchronize animation with the software keyboard"):
+ *  - layout height changes once per keyboard animation, never per frame: it uses the smaller
+ *    of the animation's start and end keyboard heights. Opening resizes when the animation
+ *    ends, closing resizes when it starts, so the content is never shorter than the space
+ *    above the keyboard and no gap shows.
+ *  - every frame, the content is moved up by the rest of the current keyboard height
+ *    (draw-only translation, no layout and no terminal resize).
+ * One resize per animation means one SIGWINCH and one repaint for the program on the server.
+ */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun Modifier.followKeyboard(): Modifier {
+    val density = LocalDensity.current
+    val ime = WindowInsets.ime
+    // The root already pads for the navigation bar, which the IME insets include.
+    val nav = WindowInsets.navigationBars.getBottom(density)
+    val settled = (minOf(WindowInsets.imeAnimationSource.getBottom(density), WindowInsets.imeAnimationTarget.getBottom(density)) - nav)
+        .coerceAtLeast(0)
+    return this
+        .graphicsLayer { translationY = -((ime.getBottom(density) - nav).coerceAtLeast(0) - settled).coerceAtLeast(0).toFloat() }
+        .padding(bottom = with(density) { settled.toDp() })
 }
 
 @Composable

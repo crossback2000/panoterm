@@ -99,24 +99,14 @@ function start() {
     if (!dims || !isFinite(dims.rows) || dims.rows <= 0) return;
     const cols = fixedCols > 0 ? fixedCols : Math.max(10, dims.cols);
     const rows = Math.max(4, dims.rows);
-    if (cols !== term.cols) term.resize(cols, term.rows);
-    if (rows !== term.rows) resizeRows(rows);
+    if (cols !== term.cols || rows !== term.rows) term.resize(cols, rows);
     if (fixedCols > 0) el.style.width = (screenWidth() + 10) + 'px';
     placeScreen();
   }
 
-  // Every row change makes Claude Code repaint its whole screen. The soft keyboard animates
-  // the view height in ~15 steps, and a repaint meant for one size that arrives after the
-  // next resize lands in the wrong place (duplicated lines in scrollback). So size changes of
-  // the view are applied only once it has been stable for a moment; meanwhile placeScreen()
-  // keeps the bottom rows (Claude's input box) visible.
-  const FIT_SETTLE_MS = 250;
-  let fitTimer = 0;
-  function scheduleFit() {
-    placeScreen();
-    clearTimeout(fitTimer);
-    fitTimer = setTimeout(function () { fitTimer = 0; doFit(); }, FIT_SETTLE_MS);
-  }
+  // The view only changes size when something really changed (soft keyboard animation
+  // finished, rotation, banner shown). During the keyboard animation the native side moves
+  // the whole terminal with the keyboard instead, so the size changes once per animation.
 
   // Native bars drawn over the bottom of the terminal (Hangul composing text, autocomplete,
   // approval buttons). They don't change the terminal size (no repaint per keystroke); the
@@ -134,76 +124,6 @@ function start() {
     const shift = Math.max(0, used - visible);
     const top = shift ? (-shift) + 'px' : '';
     if (el.style.top !== top) el.style.top = top;
-  }
-
-  // Row-count changes (soft keyboard, pinch zoom, rotation) without duplicating scrollback.
-  //
-  // On SIGWINCH, Claude Code repaints its whole screen from the top (ESC[H + every row). Which
-  // of its lines land on the top row depends on its layout (blank rows under the input box
-  // vary), so the terminal can't know beforehand how many lines belong in scrollback. Stock
-  // xterm.js drops rows below the cursor on shrink and pulls scrollback back on grow only when
-  // the cursor is on the last row, which left lines in scrollback that were also repainted on
-  // screen: the same text appeared again while scrolling up.
-  // Fix, in two steps (normal buffer only; tmux/vim in the alternate buffer keep stock behavior):
-  //  1. resize without ever losing a line: shrink pushes the top rows into scrollback, grow
-  //     pulls nothing back. The only possible error left is overlap, never a gap.
-  //  2. once the program has repainted (output with ESC[H after the resize, then a short quiet
-  //     period), drop the scrollback tail that the top of the screen repeats.
-  const DEDUPE_QUIET_MS = 100, DEDUPE_WATCH_MS = 3000;
-  let dedupeWatch = 0, dedupeSawHome = false, dedupeTimer = 0;
-  function resizeRows(rows) {
-    const act = term.buffer.active;
-    const buf = term._core && term._core.buffer;
-    if (act.type !== 'normal' || !buf || typeof buf.y !== 'number' || !buf.lines || !buf.lines.splice) { term.resize(term.cols, rows); return; }
-    const old = term.rows, y0 = buf.y;
-    try {
-      const cur = buf.lines.get(buf.ybase + y0);
-      buf.y = rows < old ? old - 1 : Math.min(y0, old - 2);
-      term.resize(term.cols, rows);
-      let y = -1;
-      for (let i = 0; i < term.rows; i++) if (buf.lines.get(buf.ybase + i) === cur) { y = i; break; }
-      buf.y = y >= 0 ? y : Math.max(0, Math.min(term.rows - 1, y0));
-    } catch (e) {
-      buf.y = Math.max(0, Math.min(term.rows - 1, y0));
-      if (term.rows !== rows) term.resize(term.cols, rows);
-    }
-    dedupeWatch = performance.now() + DEDUPE_WATCH_MS;
-    dedupeSawHome = false;
-  }
-  // Called for every output chunk: watch for the repaint that follows a resize.
-  function dedupeOnOutput(u8) {
-    if (!dedupeWatch) return;
-    if (performance.now() > dedupeWatch) { dedupeWatch = 0; return; }
-    if (!dedupeSawHome) {
-      for (let i = 0; i + 2 < u8.length; i++) {
-        if (u8[i] === 0x1b && u8[i + 1] === 0x5b && (u8[i + 2] === 0x48 || (u8[i + 2] === 0x31 && u8[i + 3] === 0x3b && u8[i + 4] === 0x31 && u8[i + 5] === 0x48))) { dedupeSawHome = true; break; }
-      }
-    }
-    if (dedupeSawHome) { clearTimeout(dedupeTimer); dedupeTimer = setTimeout(dedupeScrollback, DEDUPE_QUIET_MS); }
-  }
-  function lineText(buf, i) { const l = buf.lines.get(i); return l ? l.translateToString(true) : ''; }
-  function dedupeScrollback() {
-    dedupeWatch = 0;
-    const buf = term._core && term._core.buffer;
-    if (term.buffer.active.type !== 'normal' || !buf || buf.ybase <= 0) return;
-    try {
-      for (let m = Math.min(buf.ybase, term.rows); m >= 2; m--) {
-        let same = true, content = false;
-        for (let i = 0; i < m; i++) {
-          const a = lineText(buf, buf.ybase - m + i);
-          if (a !== lineText(buf, buf.ybase + i)) { same = false; break; }
-          if (a.trim()) content = true;
-        }
-        if (!same || !content) continue;
-        const atBottom = buf.ydisp === buf.ybase;
-        buf.lines.splice(buf.ybase - m, m);
-        buf.ybase -= m;
-        buf.ydisp = atBottom ? buf.ybase : Math.max(0, Math.min(buf.ydisp, buf.ybase));
-        try { term._core.viewport && term._core.viewport.syncScrollArea(true); } catch (e) { }
-        term.refresh(0, term.rows - 1);
-        return;
-      }
-    } catch (e) { }
   }
 
   window.setFontSize = function (n) { fontSize = n; term.options.fontSize = n; invalidateMetrics(); doFit(); };
@@ -481,7 +401,7 @@ function start() {
     const bin = atob(b64);
     const u8 = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
-    term.write(u8, function () { dedupeOnOutput(u8); afterWrite(); });
+    term.write(u8, afterWrite);
   };
   window.getSelectionText = function () { return term.getSelection(); };
 
@@ -675,7 +595,7 @@ function start() {
   term.onData(function (d) { Bridge.onTermData(d); });
   term.onBinary(function (d) { Bridge.onTermBinary(d); });
 
-  new ResizeObserver(scheduleFit).observe(wrap);
+  new ResizeObserver(function () { doFit(); }).observe(wrap); // runs after layout, before paint
   doFit();
   Bridge.onReady(term.cols, term.rows);
 
