@@ -35,6 +35,14 @@ class TerminalInputView(ctx: Context) : View(ctx) {
     private val hangul = Hangul()
     private var capsHeld = false
 
+    // Soft-keyboard composition. sendText() would flush it again, so IME text is sent raw here.
+    private val ime = ImeComposition(
+        send = { sendImeText(it) },
+        show = { onComposing(it) },
+        sendPlain = { onBytes(it.toByteArray()) },
+    )
+    private fun flushImeComposing() = ime.flush()
+
     init {
         isFocusable = true
         isFocusableInTouchMode = true
@@ -76,6 +84,11 @@ class TerminalInputView(ctx: Context) : View(ctx) {
 
     /** Hardware key down. Returns true if consumed. */
     fun handleHardwareKey(e: KeyEvent): Boolean {
+        if (ime.isComposing) {
+            // ⌫ while composing belongs to the IME's composition: leave it to the IME.
+            if (e.keyCode == KeyEvent.KEYCODE_DEL) return false
+            if (!KeyEvent.isModifierKey(e.keyCode)) flushImeComposing()
+        }
         val capsAsCtrl = settings().capsAsCtrl
         if (capsAsCtrl && e.keyCode == KeyEvent.KEYCODE_CAPS_LOCK) { capsHeld = true; return true }
         if (isHangulToggle(e)) { toggleHangul(); return true }
@@ -114,14 +127,21 @@ class TerminalInputView(ctx: Context) : View(ctx) {
 
     /** Key bar: special key by keycode (arrows, Tab, PgUp...). */
     fun sendKeyCode(keyCode: Int, shift: Boolean) {
+        flushImeComposing()
         if (hangul.isComposing) commitHangul()
         val s = KeyEncoder.special(keyCode, shift, stickyCtrl, stickyAlt, appCursor()) ?: return
         clearSticky()
         onBytes(s.toByteArray())
     }
 
-    /** Key bar / IME text. A single character honours sticky Ctrl/Alt. */
+    /** Key bar text. A single character honours sticky Ctrl/Alt. */
     fun sendText(t: String) {
+        flushImeComposing()
+        sendImeText(t)
+    }
+
+    /** IME text (composition already resolved). A single character honours sticky Ctrl/Alt. */
+    private fun sendImeText(t: String) {
         if (t.isEmpty()) return
         if (hangul.isComposing) commitHangul()
         val s = t.replace("\r\n", "\r").replace('\n', '\r')
@@ -138,6 +158,7 @@ class TerminalInputView(ctx: Context) : View(ctx) {
 
     /** Raw bytes from the key bar (Esc, ^C, tmux prefix...). Clears sticky modifiers. */
     fun sendRaw(s: String) {
+        flushImeComposing()
         if (hangul.isComposing) commitHangul()
         clearSticky()
         onBytes(s.toByteArray())
@@ -153,29 +174,14 @@ class TerminalInputView(ctx: Context) : View(ctx) {
             EditorInfo.IME_FLAG_NO_FULLSCREEN or
             EditorInfo.IME_ACTION_NONE
         return object : BaseInputConnection(this, false) {
-            private var composing = ""
-
             override fun setComposingText(text: CharSequence, newCursorPosition: Int): Boolean {
-                composing = text.toString()
-                onComposing(composing)
-                return true
+                ime.setComposing(text.toString()); return true
             }
 
-            override fun finishComposingText(): Boolean {
-                if (composing.isNotEmpty()) {
-                    val c = composing
-                    composing = ""
-                    onComposing("")
-                    sendText(c)
-                }
-                return true
-            }
+            override fun finishComposingText(): Boolean { ime.finish(); return true }
 
             override fun commitText(text: CharSequence, newCursorPosition: Int): Boolean {
-                composing = ""
-                onComposing("")
-                sendText(text.toString())
-                return true
+                ime.commit(text.toString()); return true
             }
 
             override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
@@ -184,6 +190,7 @@ class TerminalInputView(ctx: Context) : View(ctx) {
             }
 
             override fun performEditorAction(actionCode: Int): Boolean {
+                flushImeComposing()
                 onBytes("\r".toByteArray())
                 return true
             }
