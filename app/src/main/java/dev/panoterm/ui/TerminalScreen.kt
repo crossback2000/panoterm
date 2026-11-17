@@ -64,7 +64,7 @@ import dev.panoterm.term.ApprovalPrompt
 import dev.panoterm.term.TermSession
 import dev.panoterm.term.TermTable
 import dev.panoterm.term.TerminalInputView
-import dev.panoterm.term.TerminalWebView
+import dev.panoterm.term.SessionTerminal
 
 /** Column presets for the wide viewport (0 = fit to screen). */
 private val WIDTHS = listOf(0, 120, 160, 200)
@@ -111,7 +111,10 @@ fun TerminalScreen(
     fun MenuItem(label: String, action: () -> Unit) =
         DropdownMenuItem(text = { Text(label) }, onClick = { menuOpen = false; action() })
 
-    val webView = remember(session.id) { TerminalWebView(ctx) }
+    // The terminal belongs to the session and outlives this screen (see SessionTerminal).
+    val terminal = remember(session.id) { app.sessions.terminal(session) }
+    val webView by terminal.view.collectAsState()
+    val toolbar = remember { TermToolbar() }
     val input = remember(session.id) { TerminalInputView(ctx) }
     val main = remember { Handler(Looper.getMainLooper()) }
     val completer = remember(session.id) {
@@ -147,11 +150,25 @@ fun TerminalScreen(
 
     fun copySelection() {
         webView.selectionText { t ->
-            if (t.isNotEmpty()) {
-                ctx.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("terminal", t))
+            if (t.isNotBlank()) {
+                ctx.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("terminal", t.trimEnd()))
                 Toast.makeText(ctx, "복사했습니다", Toast.LENGTH_SHORT).show()
             }
         }
+    }
+
+    /** Types the selected text at the prompt (no clipboard involved). */
+    fun typeSelection() {
+        webView.selectionText { t ->
+            if (t.isNotBlank()) session.paste(t.trimEnd())
+            webView.clearSelectionText()
+        }
+    }
+
+    /** Checks the clipboard's description only: reading the content would show Android's "pasted" notice. */
+    fun clipboardHasText(): Boolean {
+        val d = ctx.getSystemService(ClipboardManager::class.java).primaryClipDescription ?: return false
+        return d.hasMimeType("text/*")
     }
 
     fun openLens() = webView.tables { lensTables = it; overlay = Overlay.LENS }
@@ -207,18 +224,13 @@ fun TerminalScreen(
         input.appCursor = { session.appCursor }
         input.onShortcut = ::shortcut
         input.onComposing = { composing = it }
+        input.onPaste = { session.paste(it) }
+        input.onPasteRequest = { paste() }
         input.onStickyChanged = { c, a -> ctrlOn = c; altOn = a }
         input.settings = { app.settings.current }
 
-        webView.bind(fontSize, fixedCols, app.settings.current.renderer, object : TerminalWebView.Callbacks {
-            override fun onReady(cols: Int, rows: Int) = session.onTerminalSize(cols, rows)
-            override fun onResize(cols: Int, rows: Int) = session.onTerminalSize(cols, rows)
-            override fun onTermData(bytes: ByteArray) = session.send(bytes)
-            override fun onModes(appCursor: Boolean, bracketedPaste: Boolean) {
-                session.appCursor = appCursor
-                session.bracketedPaste = bracketedPaste
-            }
-            override fun onTap() = input.showKeyboard()
+        terminal.ui = object : SessionTerminal.Ui {
+            override fun onTap() { toolbar.hide(); input.showKeyboard() }
             override fun onFontSize(size: Int) {
                 fontSize = size
                 persist { it.copy(fontSize = size) }
@@ -227,9 +239,25 @@ fun TerminalScreen(
             override fun onPrompt(p: ApprovalPrompt?) { prompt = p }
             override fun onTables(count: Int) { tableCount = count }
             override fun onSelectStart() {
+                toolbar.hide()
                 view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
             }
-            override fun onSelection(active: Boolean) { hasSelection = active }
+            override fun onSelection(active: Boolean, dragging: Boolean, rect: android.graphics.Rect?) {
+                hasSelection = active
+                if (!active || dragging || rect == null) { toolbar.hide(); return }
+                val items = mutableListOf<Pair<String, () -> Unit>>(
+                    "복사" to { copySelection(); terminal.view.value.clearSelectionText() },
+                )
+                if (clipboardHasText()) items += "붙여넣기" to { terminal.view.value.clearSelectionText(); paste() }
+                items += "입력" to { typeSelection() }
+                items += "전체 선택" to { terminal.view.value.selectAllText() }
+                toolbar.show(terminal.view.value, rect, items)
+            }
+            override fun onPasteMenu(x: Int, y: Int) {
+                view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+                if (clipboardHasText()) toolbar.show(terminal.view.value, android.graphics.Rect(x, y - 8, x + 1, y + 8), listOf("붙여넣기" to { paste() }))
+                else Toast.makeText(ctx, "클립보드가 비어 있습니다", Toast.LENGTH_SHORT).show()
+            }
             override fun onGesture(name: String) {
                 // Two-finger swipe left = Esc (interrupt Claude).
                 if (name == "swipe-left" && app.settings.current.twoFingerEsc) {
@@ -238,18 +266,22 @@ fun TerminalScreen(
                     Toast.makeText(ctx, "Esc", Toast.LENGTH_SHORT).show()
                 }
             }
-        })
-        session.attach { bytes -> main.post { webView.write(bytes) } }
+            override fun onRendererGone() {
+                Toast.makeText(ctx, "터미널 화면 엔진이 다시 시작되어 이전 화면 내용을 잃었습니다", Toast.LENGTH_LONG).show()
+            }
+        }
         activity.keyTarget = input
         app.visibleSessionId = session.id
         input.requestFocus()
 
         onDispose {
             completer.dispose()
-            session.detach()
+            toolbar.hide()
+            terminal.ui = null
+            // Only take the view off this screen: the terminal lives on with the session.
+            terminal.view.value.let { v -> (v.parent as? android.view.ViewGroup)?.removeView(v) }
             if (activity.keyTarget === input) activity.keyTarget = null
             if (app.visibleSessionId == session.id) app.visibleSessionId = null
-            webView.destroy()
         }
     }
 
@@ -349,33 +381,22 @@ fun TerminalScreen(
             Box(Modifier.weight(1f).fillMaxWidth().clipToBounds()) {
             Column(Modifier.fillMaxSize().followKeyboard()) {
             Box(Modifier.weight(1f).fillMaxWidth()) {
-                AndroidView(factory = { webView }, modifier = Modifier.fillMaxSize())
+                // The session's terminal view is moved into this screen while it is open.
+                AndroidView(
+                    factory = { c -> android.widget.FrameLayout(c) },
+                    update = { box ->
+                        if (webView.parent !== box) {
+                            (webView.parent as? android.view.ViewGroup)?.removeView(webView)
+                            box.removeAllViews()
+                            box.addView(webView)
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                )
                 // Invisible focus holder for keyboard input.
                 AndroidView(factory = { input }, modifier = Modifier.size(1.dp))
                 if (tableCount > 0 && overlay == Overlay.NONE && !hasSelection) {
                     Box(Modifier.align(Alignment.TopEnd)) { TablesChip(tableCount) { openLens() } }
-                }
-                if (hasSelection) {
-                    // Copy bar for the long-press selection.
-                    Row(
-                        Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp)
-                            .background(Color(0xEE263238), androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
-                            .padding(horizontal = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        TextButton(onClick = {
-                            webView.selectionText { t ->
-                                if (t.isNotEmpty()) {
-                                    ctx.getSystemService(ClipboardManager::class.java)
-                                        .setPrimaryClip(ClipData.newPlainText("terminal", t.trimEnd()))
-                                    Toast.makeText(ctx, "복사했습니다", Toast.LENGTH_SHORT).show()
-                                }
-                                webView.clearSelectionText()
-                            }
-                        }) { Text("복사", color = Color.White) }
-                        TextButton(onClick = { webView.selectAllText() }) { Text("전체 선택", color = Color(0xFF80CBC4)) }
-                        TextButton(onClick = { webView.clearSelectionText() }) { Text("취소", color = Color(0xFFB0BEC5)) }
-                    }
                 }
                 // Bars that come and go while typing are drawn over the terminal instead of
                 // taking layout height: resizing the terminal makes Claude Code repaint its whole
@@ -511,4 +532,41 @@ private fun SmallButton(label: String, onClick: () -> Unit) {
     TextButton(onClick = onClick, modifier = Modifier.height(40.dp)) {
         Text(label, color = MaterialTheme.colorScheme.primary, fontSize = 14.sp)
     }
+}
+
+/**
+ * Android's floating text toolbar (the one text fields show for a selection) for the terminal's
+ * selection and for paste. Shown over [rect] (view pixels of the anchor view).
+ */
+private class TermToolbar {
+    private var mode: android.view.ActionMode? = null
+    private val rect = android.graphics.Rect()
+    private var titles: List<String> = emptyList()
+
+    fun show(anchor: android.view.View, r: android.graphics.Rect, items: List<Pair<String, () -> Unit>>) {
+        rect.set(r)
+        val m = mode
+        if (m != null && titles == items.map { it.first }) { m.invalidateContentRect(); return }
+        hide()
+        titles = items.map { it.first }
+        mode = anchor.startActionMode(object : android.view.ActionMode.Callback2() {
+            override fun onCreateActionMode(m: android.view.ActionMode, menu: android.view.Menu): Boolean {
+                items.forEachIndexed { i, (title, _) -> menu.add(0, i, i, title) }
+                return true
+            }
+            override fun onPrepareActionMode(m: android.view.ActionMode, menu: android.view.Menu) = false
+            override fun onActionItemClicked(m: android.view.ActionMode, item: android.view.MenuItem): Boolean {
+                val action = items.getOrNull(item.itemId)?.second
+                m.finish()
+                action?.invoke()
+                return true
+            }
+            override fun onDestroyActionMode(m: android.view.ActionMode) { if (mode === m) mode = null }
+            override fun onGetContentRect(m: android.view.ActionMode, view: android.view.View, outRect: android.graphics.Rect) {
+                outRect.set(rect)
+            }
+        }, android.view.ActionMode.TYPE_FLOATING)
+    }
+
+    fun hide() { mode?.let { mode = null; it.finish() } }
 }

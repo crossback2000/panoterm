@@ -53,7 +53,7 @@ function start() {
   //   dom    — slowest, most compatible
   //   auto   — WebGL on a hardware GPU, Canvas on software GL (SwiftShader etc. clip glyphs)
   // Measured (scroll step frame time, real GPU): DOM 24-30ms, Canvas 20-23ms, WebGL 17-22ms.
-  let renderer = 'dom';
+  let renderer = 'dom', rendererAddon = null;
   function softwareGL() {
     try {
       const c = document.createElement('canvas');
@@ -66,24 +66,37 @@ function start() {
   }
   function useCanvas() {
     if (!window.CanvasAddon) return false;
-    try { term.loadAddon(new CanvasAddon.CanvasAddon()); renderer = 'canvas'; return true; } catch (e) { return false; }
+    try {
+      const c = new CanvasAddon.CanvasAddon();
+      term.loadAddon(c);
+      renderer = 'canvas'; rendererAddon = c;
+      return true;
+    } catch (e) { return false; }
   }
   function useWebgl() {
     if (!window.WebglAddon) return false;
     try {
       const gl = new WebglAddon.WebglAddon();
       // GPU reset / context lost: drop to the canvas renderer instead of the slow DOM one.
-      gl.onContextLoss(function () { gl.dispose(); renderer = 'dom'; useCanvas(); });
+      gl.onContextLoss(function () { gl.dispose(); renderer = 'dom'; rendererAddon = null; useCanvas(); });
       term.loadAddon(gl);
-      renderer = 'webgl';
+      renderer = 'webgl'; rendererAddon = gl;
       return true;
     } catch (e) { return false; }
   }
-  const want = params.get('r') || 'auto';
-  if (want === 'webgl') { useWebgl() || useCanvas(); }
-  else if (want === 'canvas') { useCanvas(); }
-  else if (want === 'auto') { (!softwareGL() && useWebgl()) || useCanvas(); }
+  function useRenderer(want) {
+    if (want === 'webgl') { useWebgl() || useCanvas(); }
+    else if (want === 'canvas') { useCanvas(); }
+    else if (want === 'auto') { (!softwareGL() && useWebgl()) || useCanvas(); }
+  }
+  useRenderer(params.get('r') || 'auto');
   window.rendererName = function () { return renderer; };
+  // Settings change: swap the renderer in place (the terminal and its contents stay).
+  window.setRenderer = function (want) {
+    if (rendererAddon) { rendererAddon.dispose(); rendererAddon = null; renderer = 'dom'; }
+    useRenderer(want);
+    term.refresh(0, term.rows - 1);
+  };
 
   // ---------- sizing / wide viewport ----------
 
@@ -253,7 +266,15 @@ function start() {
     pressTimer = 0;
     if (!pressPoint || (pan && pan.dir)) return;
     stopFling(); setOffset(0);
-    const w = wordAt(cellAt(pressPoint));
+    const p = cellAt(pressPoint);
+    const line = term.buffer.active.getLine(p.row);
+    if (!line || !isWordCell(line, p.col)) {
+      // Long-press on blank space: offer paste there instead of selecting a blank.
+      pan = null;
+      Bridge.onPasteMenu(pressPoint.clientX, pressPoint.clientY);
+      return;
+    }
+    const w = wordAt(p);
     sel = { a: w.s, b: w.e };
     selectRange(w.s, w.e);
     pan = null;
@@ -269,7 +290,24 @@ function start() {
   }
   window.selectAllText = function () { term.selectAll(); };
   window.clearSelectionText = function () { term.clearSelection(); };
-  term.onSelectionChange(function () { Bridge.onSelection(term.hasSelection()); });
+
+  // Selection state for the native copy/paste toolbar: the selected area in CSS px (clamped to
+  // the visible rows) and whether the finger is still dragging it (toolbar hidden meanwhile).
+  function reportSelection() {
+    const pos = term.hasSelection() && term.getSelectionPosition();
+    const sc = screenNode();
+    if (!pos || !sc) { Bridge.onSelection(false, false, 0, 0, 0, 0); return; }
+    const r = sc.getBoundingClientRect();
+    const cw = r.width / term.cols, ch = r.height / term.rows, vy = term.buffer.active.viewportY;
+    const clamp = function (y) { return Math.max(0, Math.min(term.rows - 1, y - vy)); };
+    const top = clamp(pos.start.y), bottom = clamp(pos.end.y);
+    const oneLine = pos.start.y === pos.end.y;
+    Bridge.onSelection(true, !!sel,
+      r.left + (oneLine ? pos.start.x : 0) * cw, r.top + top * ch,
+      r.left + (oneLine ? pos.end.x : term.cols) * cw, r.top + (bottom + 1) * ch);
+  }
+  term.onSelectionChange(reportSelection);
+  term.onScroll(function () { if (term.hasSelection()) reportSelection(); });
 
   let pinch = null, pan = null;
   function dist(e) {
@@ -341,10 +379,12 @@ function start() {
     clearTimeout(pressTimer); pressTimer = 0;
     if (sel && e.touches.length === 0) {
       sel = null; pan = null;
-      Bridge.onSelection(term.hasSelection());
+      reportSelection(); // drag finished: show the toolbar
       e.preventDefault(); e.stopPropagation();
       return;
     }
+    // A plain tap dismisses the selection (and its toolbar).
+    if (e.touches.length === 0 && pan && !pan.dir && term.hasSelection()) term.clearSelection();
     if (pinch && e.touches.length < 2) {
       el.style.transform = '';
       const p = pinch;

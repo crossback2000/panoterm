@@ -40,8 +40,15 @@ class TerminalWebView(ctx: Context) : WebView(ctx) {
         fun onGesture(name: String)
         /** Long-press started a text selection (for haptic feedback). */
         fun onSelectStart()
-        /** Whether some text is currently selected (drives the copy bar). */
-        fun onSelection(active: Boolean)
+        /**
+         * Selection changed. [dragging]: the finger is still extending it. [rect]: the selected
+         * area in view pixels (visible part), for placing the copy/paste toolbar.
+         */
+        fun onSelection(active: Boolean, dragging: Boolean, rect: android.graphics.Rect?)
+        /** Long-press on blank space at ([x], [y]) view pixels: offer paste. */
+        fun onPasteMenu(x: Int, y: Int)
+        /** The WebView's renderer process died; this view is unusable and must be replaced. */
+        fun onRendererGone()
     }
 
     private val main = Handler(Looper.getMainLooper())
@@ -78,10 +85,20 @@ class TerminalWebView(ctx: Context) : WebView(ctx) {
         isVerticalScrollBarEnabled = false
         isHorizontalScrollBarEnabled = false
         setBackgroundColor(Color.BLACK)
+        // The terminal keeps running while its screen is closed (it belongs to the session), so
+        // its renderer must not be the first thing Android kills when it is not visible.
+        setRendererPriorityPolicy(RENDERER_PRIORITY_IMPORTANT, false)
     }
 
     fun bind(fontSize: Int, fixedCols: Int, renderer: String, cb: Callbacks) {
         addJavascriptInterface(Bridge(cb), "Bridge")
+        webViewClient = object : android.webkit.WebViewClient() {
+            // Without this the whole app is killed along with the renderer.
+            override fun onRenderProcessGone(view: WebView, detail: android.webkit.RenderProcessGoneDetail): Boolean {
+                main.post { cb.onRendererGone() }
+                return true
+            }
+        }
         // The page does its own long-press selection; suppress the WebView's native one.
         setOnLongClickListener { true }
         isHapticFeedbackEnabled = false
@@ -102,18 +119,37 @@ class TerminalWebView(ctx: Context) : WebView(ctx) {
         loadUrl("file:///android_asset/term/index.html#fs=$fontSize&cols=$fixedCols&r=$renderer$debug")
     }
 
-    /** Main thread only. Output is coalesced and flushed once per frame. */
+    /**
+     * Main thread only. Output is coalesced and flushed once per frame. While the view is not on
+     * screen there are no frames (postOnAnimation would hold everything until it is shown again),
+     * so output is flushed on a short timer instead and the terminal stays current.
+     */
     fun write(b: ByteArray) {
         pending.write(b)
-        if (ready && !scheduled) {
-            scheduled = true
-            postOnAnimation { flush() }
-        }
+        if (ready && !scheduled) scheduleFlush()
+    }
+
+    private fun scheduleFlush() {
+        scheduled = true
+        if (isAttachedToWindow) postOnAnimation { flush() } else main.postDelayed({ flush() }, 50)
+    }
+
+    override fun onDetachedFromWindow() {
+        super.onDetachedFromWindow()
+        // A flush queued with postOnAnimation would wait until the view is shown again.
+        if (scheduled) main.post { flush() }
+    }
+
+    private var destroyed = false
+    override fun destroy() {
+        destroyed = true
+        main.removeCallbacksAndMessages(null)
+        super.destroy()
     }
 
     private fun flush() {
         scheduled = false
-        if (pending.size() == 0) return
+        if (destroyed || pending.size() == 0) return
         val b64 = Base64.encodeToString(pending.toByteArray(), Base64.NO_WRAP)
         pending.reset()
         evaluateJavascript("termWrite('$b64')", null)
@@ -122,6 +158,7 @@ class TerminalWebView(ctx: Context) : WebView(ctx) {
     private fun js(code: String) { if (ready) evaluateJavascript(code, null) }
 
     fun setFontSize(n: Int) = js("setFontSize($n)")
+    fun setRenderer(r: String) = js("setRenderer('${r.filter { it.isLetter() }}')")
     fun setFixedCols(n: Int) = js("setFixedCols($n)")
     fun panBy(pages: Float) = js("panBy($pages)")
     fun followCursor() = js("followCursor()")
@@ -170,7 +207,7 @@ class TerminalWebView(ctx: Context) : WebView(ctx) {
         @JavascriptInterface
         fun onReady(cols: Int, rows: Int) = main.post {
             ready = true
-            if (pending.size() > 0) { scheduled = true; postOnAnimation { flush() } }
+            if (pending.size() > 0 && !scheduled) scheduleFlush()
             if (bottomInsetPx > 0) setBottomInset(bottomInsetPx)
             cb.onReady(cols, rows)
         }
@@ -203,7 +240,17 @@ class TerminalWebView(ctx: Context) : WebView(ctx) {
         fun onSelectStart() = main.post { cb.onSelectStart() }
 
         @JavascriptInterface
-        fun onSelection(active: Boolean) = main.post { cb.onSelection(active) }
+        fun onSelection(active: Boolean, dragging: Boolean, l: Float, t: Float, r: Float, b: Float) {
+            val d = resources.displayMetrics.density
+            val rect = if (active) android.graphics.Rect((l * d).toInt(), (t * d).toInt(), (r * d).toInt(), (b * d).toInt()) else null
+            main.post { cb.onSelection(active, dragging, rect) }
+        }
+
+        @JavascriptInterface
+        fun onPasteMenu(x: Float, y: Float) {
+            val d = resources.displayMetrics.density
+            main.post { cb.onPasteMenu((x * d).toInt(), (y * d).toInt()) }
+        }
 
         @JavascriptInterface
         fun onPrompt(json: String) {

@@ -34,7 +34,7 @@ object Prompts {
     val hostKey = MutableStateFlow<HostKeyPrompt?>(null)
 }
 
-/** Fixed-size ring buffer of terminal output, replayed when the terminal view is re-created. */
+/** Fixed-size ring buffer: output that arrives before the session's terminal exists. */
 class ByteRing(private val cap: Int) {
     private val data = ByteArray(cap)
     private var start = 0
@@ -103,7 +103,8 @@ class TermSession(
     @Volatile private var go: Session? = null
     @Volatile private var generation = 0
     private val lock = Any()
-    private val ring = ByteRing(2 shl 20)
+    /** Output until the terminal is attached (normally just the first "connecting" lines). */
+    private var early: ByteRing? = ByteRing(256 shl 10)
     private var sink: ((ByteArray) -> Unit)? = null
     private val writer = Executors.newSingleThreadExecutor()
     private val main = Handler(Looper.getMainLooper())
@@ -137,19 +138,23 @@ class TermSession(
     // ---- output ----
 
     private fun emit(b: ByteArray) = synchronized(lock) {
-        ring.write(b)
-        sink?.invoke(b)
+        val s = sink
+        if (s != null) s(b) else early?.write(b)
     }
 
     private fun note(text: String) = emit("\r\n\u001b[33m[PanoTerm] $text\u001b[0m\r\n".toByteArray())
 
-    /** Replays buffered output, then streams new output to [s]. */
+    /**
+     * Connects the session's terminal (once, for the session's lifetime): hands over output that
+     * arrived before it, then streams all new output to [s].
+     */
     fun attach(s: (ByteArray) -> Unit) = synchronized(lock) {
-        val snap = ring.snapshot()
-        if (snap.isNotEmpty()) s(snap)
+        early?.snapshot()?.takeIf { it.isNotEmpty() }?.let(s)
+        early = null
         sink = s
     }
 
+    /** The terminal is gone (session closed): drop further output. */
     fun detach() = synchronized(lock) { sink = null }
 
     private fun notifyUser(title: String, body: String) {
@@ -465,8 +470,14 @@ class SessionManager(private val app: App) {
         return s
     }
 
+    private val terminals = HashMap<String, SessionTerminal>()
+
+    /** The session's terminal, created on first use. Main thread only. */
+    fun terminal(s: TermSession): SessionTerminal = terminals.getOrPut(s.id) { SessionTerminal(app, s) }
+
     @Synchronized
     fun close(s: TermSession) {
+        app.mainExecutor.execute { terminals.remove(s.id)?.destroy() }
         s.disconnect()
         _sessions.value = _sessions.value.filterNot { it.id == s.id }
         SessionService.update(app, _sessions.value.size)

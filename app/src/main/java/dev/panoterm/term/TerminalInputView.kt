@@ -21,6 +21,10 @@ class TerminalInputView(ctx: Context) : View(ctx) {
     var onShortcut: (KeyEvent) -> Boolean = { false }
     var appCursor: () -> Boolean = { false }
     var onComposing: (String) -> Unit = {}
+    /** Text the keyboard pasted (sent as a paste, so a shell or Claude Code doesn't run it line by line). */
+    var onPaste: (String) -> Unit = {}
+    /** The keyboard's own paste command: paste from the clipboard. */
+    var onPasteRequest: () -> Unit = {}
     var onStickyChanged: (ctrl: Boolean, alt: Boolean) -> Unit = { _, _ -> }
     var onHangulChanged: (Boolean) -> Unit = {}
     var settings: () -> Settings.Values = { Settings.Values() }
@@ -181,7 +185,27 @@ class TerminalInputView(ctx: Context) : View(ctx) {
             override fun finishComposingText(): Boolean { ime.finish(); return true }
 
             override fun commitText(text: CharSequence, newCursorPosition: Int): Boolean {
-                ime.commit(text.toString()); return true
+                val t = text.toString()
+                // Keyboards send Enter as a key event, never inside committed text, so committed
+                // text with a line break is a paste (e.g. Gboard's clipboard).
+                if (t.length > 1 && (t.contains('\n') || t.contains('\r'))) {
+                    ime.finish()
+                    if (hangul.isComposing) commitHangul()
+                    clearSticky()
+                    onPaste(t)
+                } else {
+                    ime.commit(t)
+                }
+                return true
+            }
+
+            override fun performContextMenuAction(id: Int): Boolean {
+                if (id == android.R.id.paste || id == android.R.id.pasteAsPlainText) {
+                    flushImeComposing()
+                    onPasteRequest()
+                    return true
+                }
+                return super.performContextMenuAction(id)
             }
 
             override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
