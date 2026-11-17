@@ -16,6 +16,31 @@ class CompletionTest {
     @Test fun claudeAtFile() =
         assertEquals(CompletionContext.ClaudeFile("src/ma"), Completion.parse("│ > look at @src/ma"))
 
+    // Claude Code 2.x: "❯ /co" between ─── rules (the page tells us it's Claude's box).
+    @Test fun claudeChevronSlash() =
+        assertEquals(CompletionContext.ClaudeSlash("/co"), Completion.parse("❯ /co", inClaudeBox = true))
+
+    @Test fun claudeChevronAtFile() =
+        assertEquals(CompletionContext.ClaudeFile("src/ma"), Completion.parse("❯ look at @src/ma", inClaudeBox = true))
+
+    // It used to fall through to the shell parser and list the root folder for "/co".
+    @Test fun claudeBoxNeverShell() = assertNull(Completion.parse("❯ fix /usr", inClaudeBox = true))
+
+    @Test fun slashUsesClaudeMenuFirst() {
+        val menu = listOf("/copy" to "Copy the last response", "/color" to "Set the prompt bar color", "/simplify" to "Review changed code")
+        val s = Completion.slashSuggestions("/co", menu, ClaudeCommands.builtin)
+        assertEquals(listOf("/copy", "/color"), s.take(2).map { it.label })
+        assertTrue(s.any { it.label == "/compact" })
+        assertFalse(s.any { it.label == "/simplify" })
+        assertEquals("py", s[0].insert)
+        assertEquals("마지막 답 복사", s[0].hint)
+    }
+
+    @Test fun slashFuzzyMenuEntryRetypes() {
+        val s = Completion.slashSuggestions("/cpt", listOf("/compact" to "Free up context"), emptyList())
+        assertEquals("\u007f\u007f\u007f\u007f/compact", s.single().insert)
+    }
+
     @Test fun claudePlainTextHasNoCompletion() = assertNull(Completion.parse("│ > fix the bug"))
 
     @Test fun shellCdDirsOnly() =

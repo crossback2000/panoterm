@@ -142,7 +142,8 @@ fun SuggestionBar(items: List<dev.panoterm.term.Suggestion>, onPick: (dev.panote
 
 fun keysFor(ids: List<String>): List<BarKey> {
     val byId = ALL_KEYS.associateBy { it.id }
-    return (ids.ifEmpty { DEFAULT_KEY_IDS }).mapNotNull { byId[it] }
+    // distinct: a saved row could hold the same key twice (it showed Tab twice).
+    return (ids.ifEmpty { DEFAULT_KEY_IDS }).distinct().mapNotNull { byId[it] }
 }
 
 /** tmux row (top, optional). Assumes the default prefix Ctrl+B. */

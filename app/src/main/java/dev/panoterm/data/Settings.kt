@@ -34,6 +34,8 @@ class Settings(ctx: Context) {
         val updateWifiOnly: Boolean = true,
         /** Key ids of the bottom key row, in order. Empty = default. */
         val keyBar: List<String> = emptyList(),
+        /** Action ids shown as icons in the terminal's top bar, in order. Empty = default. */
+        val topBar: List<String> = emptyList(),
     )
 
     private val prefs = ctx.getSharedPreferences("settings", Context.MODE_PRIVATE)
@@ -57,7 +59,8 @@ class Settings(ctx: Context) {
         updateCheck = prefs.getBoolean("updateCheck", true),
         autoUpdate = prefs.getBoolean("autoUpdate", true),
         updateWifiOnly = prefs.getBoolean("updateWifiOnly", true),
-        keyBar = migrateKeyBar(prefs.getString("keyBar", "")!!.split(',').filter { it.isNotBlank() }),
+        keyBar = migrateKeyBar(prefs.getString("keyBar", "")!!.split(',').filter { it.isNotBlank() }.distinct()),
+        topBar = prefs.getString("topBar", "")!!.split(',').filter { it.isNotBlank() }.distinct(),
     )
 
     /** v1.2.2 slimmed the key row; drop the removed keys from a row the user had customised (once). */
@@ -91,7 +94,8 @@ class Settings(ctx: Context) {
             .putBoolean("updateCheck", v.updateCheck)
             .putBoolean("autoUpdate", v.autoUpdate)
             .putBoolean("updateWifiOnly", v.updateWifiOnly)
-            .putString("keyBar", v.keyBar.joinToString(","))
+            .putString("keyBar", v.keyBar.distinct().joinToString(","))
+            .putString("topBar", v.topBar.distinct().joinToString(","))
             .apply()
         _values.value = v
     }
