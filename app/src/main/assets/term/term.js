@@ -99,8 +99,46 @@ function start() {
     if (!dims || !isFinite(dims.rows) || dims.rows <= 0) return;
     const cols = fixedCols > 0 ? fixedCols : Math.max(10, dims.cols);
     const rows = Math.max(4, dims.rows);
-    if (cols !== term.cols || rows !== term.rows) term.resize(cols, rows);
+    if (cols !== term.cols) term.resize(cols, term.rows);
+    if (rows !== term.rows) resizeRows(rows);
     if (fixedCols > 0) el.style.width = (screenWidth() + 10) + 'px';
+  }
+
+  // Row-count changes (soft keyboard shown/hidden, pinch zoom) without duplicating scrollback.
+  //
+  // On SIGWINCH, Claude Code repaints the whole screen from the top with the last `rows` lines
+  // of its output, assuming the screen is anchored at the bottom: shrinking moves the top lines
+  // into scrollback and growing pulls them back. xterm.js instead drops the rows below the
+  // cursor when shrinking and only pulls from scrollback when the cursor is on the last row.
+  // Claude's cursor sits in its input box above the status lines, so every keyboard toggle left
+  // lines in scrollback that were also repainted on screen: the same text appeared again while
+  // scrolling up.
+  // Fix: in the normal buffer, park the cursor on the "bottom" row for the resize so xterm.js
+  // pushes / pulls scrollback at the top, then put it back on the same line. Extra blank rows
+  // at the bottom don't count; one is kept because Claude's frame ends with a blank row.
+  // The alternate buffer (tmux, vim) is repainted by its program and keeps the stock behavior.
+  function resizeRows(rows) {
+    const act = term.buffer.active;
+    const buf = term._core && term._core.buffer;
+    if (act.type !== 'normal' || !buf || typeof buf.y !== 'number' || !buf.lines) { term.resize(term.cols, rows); return; }
+    const old = term.rows, y0 = buf.y;
+    try {
+      const cur = buf.lines.get(buf.ybase + y0);
+      // Bottom = last non-blank row + one blank row (never above the cursor). A mostly empty
+      // screen (e.g. a shell after `clear`) therefore grows downwards, like stock xterm.js.
+      const blank = function (i) { const l = act.getLine(act.baseY + i); return !!l && l.translateToString(true) === ''; };
+      let anchor = old - 1;
+      let drop = rows < old ? old - rows : old;
+      while (drop > 0 && anchor - 1 > y0 && blank(anchor) && blank(anchor - 1)) { anchor--; drop--; }
+      buf.y = anchor;
+      term.resize(term.cols, rows);
+      let y = -1;
+      for (let i = 0; i < term.rows; i++) if (buf.lines.get(buf.ybase + i) === cur) { y = i; break; }
+      buf.y = y >= 0 ? y : Math.max(0, Math.min(term.rows - 1, y0 - (old - term.rows)));
+    } catch (e) {
+      buf.y = Math.max(0, Math.min(term.rows - 1, y0));
+      if (term.rows !== rows) term.resize(term.cols, rows);
+    }
   }
 
   window.setFontSize = function (n) { fontSize = n; term.options.fontSize = n; invalidateMetrics(); doFit(); };
