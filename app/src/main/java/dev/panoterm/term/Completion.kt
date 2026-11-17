@@ -45,15 +45,18 @@ object Completion {
     // "user@host:~/proj$" style prompts → the working directory.
     private val promptCwd = Regex(":(~[^\\s$#%]*|/[^\\s$#%]*)\\s*[$#%]")
 
-    fun parse(lineBeforeCursor: String): CompletionContext? {
+    /** [inClaudeBox]: the screen shows Claude Code's input box around this line. */
+    fun parse(lineBeforeCursor: String, inClaudeBox: Boolean = false): CompletionContext? {
         val line = lineBeforeCursor.replace(' ', ' ')
-        claudeLine.matchEntire(line)?.let { m ->
+        (if (inClaudeBox) claudeBoxLine else claudeLine).matchEntire(line)?.let { m ->
             val rest = m.groupValues[1]
             if (rest.startsWith("/") && !rest.contains(' ')) return CompletionContext.ClaudeSlash(rest)
             val tok = rest.substringAfterLast(' ')
             if (tok.startsWith("@")) return CompletionContext.ClaudeFile(tok.substring(1))
             return null
         }
+        // Inside Claude's box but not its prompt line (a wrapped or multi-line message).
+        if (inClaudeBox) return null
         // Shell: whatever follows the last prompt marker.
         val start = promptMarkers.maxOf { mk -> line.lastIndexOf(mk).let { if (it < 0) -1 else it + mk.length } }
         if (start < 0) return null
