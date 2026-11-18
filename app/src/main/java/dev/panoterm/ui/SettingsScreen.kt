@@ -43,6 +43,8 @@ fun SettingsScreen(
     val ctx = androidx.compose.ui.platform.LocalContext.current
     var backupMode by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) } // "export" | "import"
     var pendingUri by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<android.net.Uri?>(null) }
+    var topBarEdit by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    if (topBarEdit) TopBarEditorDialog(app) { topBarEdit = false }
 
     val exportPicker = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.CreateDocument("application/octet-stream")
@@ -87,6 +89,7 @@ fun SettingsScreen(
 
             Section("키보드 (K380 등)")
             TextButton(onClick = onKeyBar) { Text("화면 키 줄 편집 →") }
+            TextButton(onClick = { topBarEdit = true }) { Text("터미널 상단 아이콘 편집 →") }
             TextButton(onClick = onSnippets) { Text("명령(⚡) 편집 →") }
             Toggle("CapsLock을 Ctrl로", "CapsLock을 누르고 있는 동안 Ctrl로 동작", v.capsAsCtrl) { b ->
                 app.settings.update { it.copy(capsAsCtrl = b) }

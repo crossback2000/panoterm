@@ -447,7 +447,7 @@ function start() {
 
   // Text of the current input line up to the cursor (soft-wrapped rows joined): used by
   // the autocomplete to see what is being typed.
-  window.getInputLine = function () {
+  function inputLine() {
     const buf = term.buffer.active;
     const y = buf.baseY + buf.cursorY;
     let start = y;
@@ -456,8 +456,87 @@ function start() {
     for (let i = start; i < y; i++) { const l = buf.getLine(i); if (l) s += l.translateToString(false); }
     const cur = buf.getLine(y);
     if (cur) s += cur.translateToString(false, 0, buf.cursorX);
-    return s;
+    return { text: s, start: start, y: y };
+  }
+  window.getInputLine = function () { return inputLine().text; };
+
+  // Cursor cell in page (CSS) pixels, or null when the cursor row is scrolled out of view.
+  function cursorBox() {
+    const sc = screenNode();
+    if (!sc || !term.rows) return null;
+    const buf = term.buffer.active;
+    const row = buf.baseY + buf.cursorY - buf.viewportY;
+    if (row < 0 || row >= term.rows) return null;
+    const r = sc.getBoundingClientRect();
+    const ch = r.height / term.rows, cw = r.width / term.cols;
+    const top = r.top + row * ch;
+    return { left: r.left + buf.cursorX * cw, top: top, bottom: top + ch, ch: ch };
+  }
+
+  function rowText(y) { const l = term.buffer.active.getLine(y); return l ? l.translateToString(true) : ''; }
+  function isRule(s) { return /^\s*[─━]{10,}\s*$/.test(s); }
+  // Claude Code's slash menu row: "  ❯ /copy      Copy the last…" or "    /config   Open settings".
+  const MENU_ROW = /^\s*(?:[❯>›]\s*)?(\/[\w:.\-]+)(?:\s{2,}(.*))?$/;
+
+  // What the autocomplete needs in one call: the input line, whether it sits in Claude Code's
+  // input box (a ─── rule right above it), the commands Claude's own "/" menu shows next to the
+  // box (newer versions above it, older below), and where the cursor is on screen.
+  window.getInputContext = function () {
+    const inp = inputLine();
+    const buf = term.buffer.active;
+    const claude = inp.start > 0 && isRule(rowText(inp.start - 1));
+    const menu = [];
+    if (claude && /^\s*[│┃|]?\s*[>❯]\s?\/\S*$/.test(inp.text)) {
+      const take = function (y) {
+        const m = MENU_ROW.exec(rowText(y));
+        if (!m) return false;
+        menu.push([m[1], (m[2] || '').trim()]);
+        return true;
+      };
+      const above = [];
+      for (let y = inp.start - 2; y >= Math.max(0, inp.start - 30); y--) {
+        const m = MENU_ROW.exec(rowText(y));
+        if (!m) break;
+        above.unshift([m[1], (m[2] || '').trim()]);
+      }
+      menu.push.apply(menu, above);
+      // Below: skip to the rule closing the box, then read the rows after it.
+      let y = inp.y + 1;
+      while (y < buf.length && y <= inp.y + 4 && !isRule(rowText(y))) y++;
+      if (y < buf.length && isRule(rowText(y))) {
+        for (let k = y + 1; k < Math.min(buf.length, y + 30); k++) if (!take(k)) break;
+      }
+    }
+    return JSON.stringify({ line: inp.text, claude: claude, menu: menu, cursor: cursorBox() });
   };
+
+  // ---------- IME composition shown at the cursor ----------
+  // The syllable being typed (soft keyboard or the hardware Hangul mode) is drawn over the
+  // cursor cell like a native text field does, instead of in a bar that pushed the screen up.
+  let imeText = '', imeEl = null;
+  function placeIme() {
+    if (!imeText) { if (imeEl) imeEl.style.display = 'none'; return; }
+    const b = cursorBox();
+    if (!imeEl) {
+      imeEl = document.createElement('div');
+      imeEl.style.cssText = 'position:fixed;z-index:20;pointer-events:none;white-space:pre;' +
+        'background:#000;color:#fff;font-family:"D2Coding",monospace;text-decoration:underline;' +
+        'text-decoration-color:#80cbc4;text-underline-offset:2px;';
+      document.body.appendChild(imeEl);
+    }
+    if (!b) { imeEl.style.display = 'none'; return; }
+    imeEl.textContent = imeText;
+    imeEl.style.fontSize = term.options.fontSize + 'px';
+    imeEl.style.lineHeight = b.ch + 'px';
+    imeEl.style.height = b.ch + 'px';
+    imeEl.style.left = b.left + 'px';
+    imeEl.style.top = b.top + 'px';
+    imeEl.style.display = 'block';
+  }
+  window.setComposition = function (t) { imeText = t || ''; placeIme(); };
+  term.onRender(function () { if (imeText) placeIme(); });
+  term.onCursorMove(function () { if (imeText) placeIme(); });
+  wrap.addEventListener('scroll', function () { if (imeText) placeIme(); }, { passive: true });
 
   // ---------- buffer helpers ----------
 

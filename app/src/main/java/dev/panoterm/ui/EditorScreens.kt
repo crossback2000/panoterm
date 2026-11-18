@@ -39,7 +39,7 @@ import dev.panoterm.data.Snippet
 fun KeyBarEditorScreen(app: App, onBack: () -> Unit) {
     val v by app.settings.values.collectAsState()
     val current = v.keyBar.ifEmpty { DEFAULT_KEY_IDS }
-    val enabled = current.filter { id -> ALL_KEYS.any { it.id == id } }
+    val enabled = current.distinct().filter { id -> ALL_KEYS.any { it.id == id } }
     val disabled = ALL_KEYS.map { it.id }.filter { it !in enabled }
     val byId = ALL_KEYS.associateBy { it.id }
 

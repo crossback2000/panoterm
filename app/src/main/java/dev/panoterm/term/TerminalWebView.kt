@@ -182,6 +182,32 @@ class TerminalWebView(ctx: Context) : WebView(ctx) {
         evaluateJavascript("getInputLine()") { cb(jsString(it)) }
     }
 
+    /** Input line, Claude Code box/menu and cursor position in one call (for autocomplete). */
+    fun inputContext(cb: (InputContext) -> Unit) {
+        if (!ready) return
+        evaluateJavascript("getInputContext()") { json ->
+            val ctx = runCatching {
+                val o = JSONObject(jsString(json))
+                val menu = o.optJSONArray("menu")
+                val d = resources.displayMetrics.density
+                val c = o.optJSONObject("cursor")
+                InputContext(
+                    line = o.optString("line"),
+                    claude = o.optBoolean("claude"),
+                    menu = if (menu == null) emptyList() else (0 until menu.length()).map { i ->
+                        val e = menu.getJSONArray(i); e.optString(0) to e.optString(1)
+                    },
+                    cursorTop = c?.let { (it.optDouble("top") * d).toInt() } ?: -1,
+                    cursorBottom = c?.let { (it.optDouble("bottom") * d).toInt() } ?: -1,
+                )
+            }.getOrNull() ?: return@evaluateJavascript
+            cb(ctx)
+        }
+    }
+
+    /** Text being composed by the keyboard, drawn at the cursor ("" hides it). */
+    fun setComposition(text: String) = js("setComposition(${JSONObject.quote(text)})")
+
     fun readerText(lastResponseOnly: Boolean, cb: (String) -> Unit) =
         evaluateJavascript("getReaderText('${if (lastResponseOnly) "last" else "recent"}')") { cb(jsString(it)) }
 

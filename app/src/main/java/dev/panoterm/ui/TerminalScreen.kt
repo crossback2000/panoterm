@@ -92,7 +92,6 @@ fun TerminalScreen(
 
     var fontSize by remember(session.id) { mutableIntStateOf(app.hosts.get(session.host.id)?.fontSize ?: session.host.fontSize) }
     var fixedCols by remember(session.id) { mutableIntStateOf(app.hosts.get(session.host.id)?.fixedCols ?: 0) }
-    var composing by remember { mutableStateOf("") }
     var ctrlOn by remember { mutableStateOf(false) }
     var altOn by remember { mutableStateOf(false) }
     var showTmux by remember(session.id) { mutableStateOf(session.host.tmux) }
@@ -118,11 +117,12 @@ fun TerminalScreen(
     val input = remember(session.id) { TerminalInputView(ctx) }
     val main = remember { Handler(Looper.getMainLooper()) }
     val completer = remember(session.id) {
-        dev.panoterm.term.Completer(session) { cb -> webView.inputLine(cb) }.apply {
+        dev.panoterm.term.Completer(session) { cb -> terminal.view.value.inputContext(cb) }.apply {
             enabled = { app.settings.current.autocomplete }
         }
     }
     val suggestions by completer.suggestions.collectAsState()
+    val suggestAnchor by completer.anchor.collectAsState()
 
     fun persist(f: (dev.panoterm.data.Host) -> dev.panoterm.data.Host) {
         app.hosts.get(session.host.id)?.let { app.hosts.upsert(f(it)) }
@@ -173,6 +173,8 @@ fun TerminalScreen(
 
     fun openLens() = webView.tables { lensTables = it; overlay = Overlay.LENS }
 
+    var topBarEdit by remember { mutableStateOf(false) }
+
     fun openUrl(url: String) = runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
 
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
@@ -190,6 +192,25 @@ fun TerminalScreen(
                 session.send("$path ")
                 Toast.makeText(ctx, "업로드 완료: 경로를 입력했습니다", Toast.LENGTH_SHORT).show()
             }.onFailure { Toast.makeText(ctx, "업로드 실패: ${it.message}", Toast.LENGTH_LONG).show() }
+        }
+    }
+
+    fun imagePickerLaunch() = imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+
+    fun runTopAction(id: String) {
+        when (id) {
+            "width" -> cycleWidth()
+            "lens" -> openLens()
+            "reader" -> overlay = Overlay.READER
+            "palette" -> paletteOpen = true
+            "image" -> imagePickerLaunch()
+            "ports" -> portsOpen = true
+            "paste" -> paste()
+            "fontUp" -> changeFont(+1)
+            "fontDown" -> changeFont(-1)
+            "tmux" -> showTmux = !showTmux
+            "keyboard" -> input.showKeyboard()
+            "close" -> { app.sessions.close(session); onBack() }
         }
     }
 
@@ -223,7 +244,8 @@ fun TerminalScreen(
         }
         input.appCursor = { session.appCursor }
         input.onShortcut = ::shortcut
-        input.onComposing = { composing = it }
+        // Drawn at the cursor by the page itself: no bar, nothing moves while typing Korean.
+        input.onComposing = { terminal.view.value.setComposition(it) }
         input.onPaste = { session.paste(it) }
         input.onPasteRequest = { paste() }
         input.onStickyChanged = { c, a -> ctrlOn = c; altOn = a }
@@ -276,6 +298,7 @@ fun TerminalScreen(
 
         onDispose {
             completer.dispose()
+            terminal.view.value.setComposition("")
             toolbar.hide()
             terminal.ui = null
             // Only take the view off this screen: the terminal lives on with the session.
@@ -325,23 +348,28 @@ fun TerminalScreen(
                         }
                     }
                 }
-                // Frequently used actions stay visible; everything else lives in the ⋮ menu.
+                // The user picks which actions are icons here (상단 아이콘 편집); the rest live in ⋮.
+                val pinned = topActionsFor(settings.topBar)
                 Row(horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
-                    IconText(if (fixedCols == 0) "↔" else "↔$fixedCols") { cycleWidth() }
-                    IconText("▦") { openLens() }
-                    IconText("📖") { overlay = Overlay.READER }
-                    IconText("⚡") { paletteOpen = true }
+                    pinned.forEach { a ->
+                        val label = when (a.id) {
+                            "width" -> if (fixedCols == 0) "↔" else "↔$fixedCols"
+                            "tmux" -> if (showTmux) "⊟" else "⊞"
+                            else -> a.icon
+                        }
+                        IconText(label) { runTopAction(a.id) }
+                    }
                     Box {
                         IconText("⋮") { menuOpen = true }
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                            MenuItem("🖼  이미지 보내기") { imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
-                            MenuItem("⇄  포트 미리보기") { portsOpen = true }
-                            MenuItem("📋  붙여넣기") { paste() }
-                            MenuItem("A+  글자 크게") { changeFont(+1) }
-                            MenuItem("A−  글자 작게") { changeFont(-1) }
-                            MenuItem(if (showTmux) "tmux 키 줄 숨기기" else "tmux 키 줄 보이기") { showTmux = !showTmux }
-                            MenuItem("⌨  키보드 열기") { input.showKeyboard() }
-                            MenuItem("✕  연결 끊고 닫기") { app.sessions.close(session); onBack() }
+                            ALL_TOP_ACTIONS.filter { a -> pinned.none { it.id == a.id } }.forEach { a ->
+                                val label = when (a.id) {
+                                    "tmux" -> if (showTmux) "tmux 키 줄 숨기기" else "tmux 키 줄 보이기"
+                                    else -> a.label
+                                }
+                                MenuItem("${a.icon}  $label") { runTopAction(a.id) }
+                            }
+                            MenuItem("✎  상단 아이콘 편집") { topBarEdit = true }
                         }
                     }
                 }
@@ -398,28 +426,23 @@ fun TerminalScreen(
                 if (tableCount > 0 && overlay == Overlay.NONE && !hasSelection) {
                     Box(Modifier.align(Alignment.TopEnd)) { TablesChip(tableCount) { openLens() } }
                 }
-                // Bars that come and go while typing are drawn over the terminal instead of
-                // taking layout height: resizing the terminal makes Claude Code repaint its whole
-                // screen (and, done once per keystroke, duplicated lines in scrollback). The page
+                // The approval bar is drawn over the terminal instead of taking layout height:
+                // resizing the terminal makes Claude Code repaint its whole screen. The page
                 // shifts its rows up by this height so the input line stays visible.
                 Column(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                         .onSizeChanged { webView.setBottomInset(it.height) },
                 ) {
-                    if (composing.isNotEmpty()) {
-                        Text(
-                            composing,
-                            color = Color.Black, fontSize = 16.sp,
-                            modifier = Modifier.fillMaxWidth().background(Color(0xFFFFF59D)).padding(horizontal = 8.dp, vertical = 2.dp),
-                        )
-                    }
-
                     val p = prompt
                     if (p != null && settings.approvalOverlay) {
                         ApprovalBar(p, onChoose = { n -> session.send(n) }, onEsc = { session.send("\u001b") })
                     }
+                }
 
-                    if (settings.autocomplete && suggestions.isNotEmpty()) {
+                // Autocomplete floats right next to the line being typed (above it, or below
+                // when there is no room) and never moves the screen.
+                if (settings.autocomplete && suggestions.isNotEmpty()) {
+                    NextToCursor(suggestAnchor) {
                         SuggestionBar(suggestions) { s ->
                             session.send(s.insert)
                             completer.onUserInput(s.insert.toByteArray()) // look again (e.g. inside the chosen folder)
@@ -453,6 +476,7 @@ fun TerminalScreen(
     }
 
     if (portsOpen) PortsDialog(session) { portsOpen = false }
+    if (topBarEdit) TopBarEditorDialog(app) { topBarEdit = false }
     if (installTmuxAsk) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { installTmuxAsk = false },
@@ -510,6 +534,23 @@ private fun Modifier.followKeyboard(): Modifier {
     return this
         .graphicsLayer { translationY = -((ime.getBottom(density) - nav).coerceAtLeast(0) - settled).coerceAtLeast(0).toFloat() }
         .padding(bottom = with(density) { settled.toDp() })
+}
+
+/**
+ * Places [content] (full width) just above the cursor row [anchor] (view pixels), or just
+ * below it when there is no room above. Unknown anchor: at the bottom.
+ */
+@Composable
+private fun NextToCursor(anchor: IntRange?, content: @Composable () -> Unit) {
+    androidx.compose.ui.layout.Layout(content = content, modifier = Modifier.fillMaxSize()) { measurables, c ->
+        val p = measurables.first().measure(c.copy(minWidth = c.maxWidth, minHeight = 0))
+        val y = when {
+            anchor == null -> c.maxHeight - p.height
+            anchor.first - p.height >= 0 -> anchor.first - p.height
+            else -> (anchor.last).coerceAtMost(c.maxHeight - p.height)
+        }.coerceAtLeast(0)
+        layout(c.maxWidth, c.maxHeight) { p.place(0, y) }
+    }
 }
 
 @Composable
