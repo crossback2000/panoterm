@@ -35,7 +35,7 @@ try {
     Invoke-Native { gomobile init } 'gomobile init'
     New-Item -ItemType Directory -Force (Join-Path $root 'app\libs') | Out-Null
     $out = Join-Path $root 'app\libs\core.aar'
-    Invoke-Native { gomobile bind '-target=android/arm64,android/amd64' -androidapi 31 '-ldflags=-s -w' -o $out . } 'gomobile bind'
+    Invoke-Native { gomobile bind '-target=android/arm64,android/amd64' -androidapi 31 -trimpath '-ldflags=-s -w' -o $out . } 'gomobile bind'
 }
 finally { Pop-Location }
 Write-Host "Built app\libs\core.aar"

@@ -30,7 +30,13 @@ function start() {
     scrollback: 10000,
     cursorBlink: true,
     allowProposedApi: true,
-    theme: { background: '#000000' }
+    theme: { background: '#000000' },
+    // OSC 8 hyperlinks: hand them to the app (http/https only) instead of xterm's default
+    // confirm() + window.open(), which would navigate this WebView away from the terminal.
+    linkHandler: {
+      allowNonHttpProtocols: false,
+      activate: function (e, uri) { Bridge.openUrl(uri); }
+    }
   });
   window.term = term;
 

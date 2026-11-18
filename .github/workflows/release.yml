@@ -65,6 +65,8 @@ jobs:
             "platforms;android-35" "build-tools;35.0.0" "ndk;29.0.14206865" > /dev/null
 
       - name: Build Go core (core.aar)
+        env:
+          CORE_TARGETS: android/arm64 # the release APK ships arm64 only
         run: bash scripts/build-core.sh
 
       - name: Signing key (from encrypted secrets)

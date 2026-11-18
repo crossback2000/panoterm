@@ -27,5 +27,9 @@ go install golang.org/x/mobile/cmd/gomobile golang.org/x/mobile/cmd/gobind
 go mod download
 gomobile init
 mkdir -p "$ROOT/app/libs"
-gomobile bind -target=android/arm64,android/amd64 -androidapi 31 -ldflags='-s -w' -o "$ROOT/app/libs/core.aar" .
+# CORE_TARGETS: release builds only ship arm64 (see app/build.gradle.kts abiFilters), so the
+# release workflow sets CORE_TARGETS=android/arm64; the default also builds the emulator ABI.
+TARGETS=${CORE_TARGETS:-android/arm64,android/amd64}
+echo "Targets: $TARGETS"
+gomobile bind -target="$TARGETS" -androidapi 31 -trimpath -ldflags='-s -w' -o "$ROOT/app/libs/core.aar" .
 echo "Built app/libs/core.aar"

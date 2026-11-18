@@ -78,6 +78,9 @@ class TerminalWebView(ctx: Context) : WebView(ctx) {
             android.view.ViewGroup.LayoutParams.MATCH_PARENT,
         )
         settings.javaScriptEnabled = true
+        // Only file:///android_asset/ is needed (unaffected by these); block everything else.
+        settings.allowFileAccess = false
+        settings.allowContentAccess = false
         settings.textZoom = 100
         settings.setSupportZoom(false)
         isFocusable = false
@@ -93,6 +96,16 @@ class TerminalWebView(ctx: Context) : WebView(ctx) {
     fun bind(fontSize: Int, fixedCols: Int, renderer: String, cb: Callbacks) {
         addJavascriptInterface(Bridge(cb), "Bridge")
         webViewClient = object : android.webkit.WebViewClient() {
+            // The page never navigates by itself. Anything else (a link, window.open, a
+            // redirect) would load a foreign page that still has the Bridge interface, i.e.
+            // could type into the SSH session — so block it and open web links in the browser.
+            override fun shouldOverrideUrlLoading(view: WebView, request: android.webkit.WebResourceRequest): Boolean {
+                val url = request.url.toString()
+                if (url.startsWith(ASSET_ROOT)) return false
+                if (request.hasGesture() && isWebUrl(url)) main.post { cb.onOpenUrl(url) }
+                return true
+            }
+
             // Without this the whole app is killed along with the renderer.
             override fun onRenderProcessGone(view: WebView, detail: android.webkit.RenderProcessGoneDetail): Boolean {
                 main.post { cb.onRendererGone() }
@@ -116,7 +129,7 @@ class TerminalWebView(ctx: Context) : WebView(ctx) {
                 .invoke(null, "debug.panoterm.bench") == "1"
         }.getOrDefault(false)
         val debug = if (dev.panoterm.BuildConfig.DEBUG) "&debug=1" + (if (bench) "&bench=1" else "") else ""
-        loadUrl("file:///android_asset/term/index.html#fs=$fontSize&cols=$fixedCols&r=$renderer$debug")
+        loadUrl("${ASSET_ROOT}index.html#fs=$fontSize&cols=$fixedCols&r=$renderer$debug")
     }
 
     /**
@@ -254,7 +267,7 @@ class TerminalWebView(ctx: Context) : WebView(ctx) {
         fun onFontSize(size: Int) = main.post { cb.onFontSize(size) }
 
         @JavascriptInterface
-        fun openUrl(url: String) = main.post { cb.onOpenUrl(url) }
+        fun openUrl(url: String) { if (isWebUrl(url)) main.post { cb.onOpenUrl(url) } }
 
         @JavascriptInterface
         fun onTables(count: Int) = main.post { cb.onTables(count) }
@@ -289,6 +302,16 @@ class TerminalWebView(ctx: Context) : WebView(ctx) {
                 )
             }.getOrNull()
             main.post { cb.onPrompt(p) }
+        }
+    }
+
+    companion object {
+        private const val ASSET_ROOT = "file:///android_asset/term/"
+
+        /** Only http(s) links leave the terminal (no intent:, file:, javascript:, …). */
+        fun isWebUrl(url: String): Boolean {
+            val scheme = runCatching { android.net.Uri.parse(url).scheme }.getOrNull()?.lowercase()
+            return scheme == "http" || scheme == "https"
         }
     }
 }

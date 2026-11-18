@@ -364,6 +364,31 @@ func TestSessionEndToEnd(t *testing.T) {
 	if !bytes.Equal(got, data) {
 		t.Fatal("uploaded content differs")
 	}
+	if fi, err := os.Stat(matches[0]); err != nil || fi.Mode().Perm() != 0o600 {
+		t.Fatalf("uploaded file mode: %v %v, want 0600", fi, err)
+	}
+
+	// Old uploads are pruned on the next upload; other files are left alone.
+	upDir := filepath.Join(ts.dir, ".cache", "panoterm")
+	old := filepath.Join(upDir, "1000-old.png")
+	foreign := filepath.Join(upDir, "notes.txt")
+	for _, f := range []string{old, foreign} {
+		os.WriteFile(f, []byte("x"), 0o600)
+		ago := time.Now().Add(-30 * 24 * time.Hour)
+		os.Chtimes(f, ago, ago)
+	}
+	if _, err := s.UploadFile("second.png", data); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(old); !os.IsNotExist(err) {
+		t.Fatal("old upload was not pruned")
+	}
+	if _, err := os.Stat(foreign); err != nil {
+		t.Fatal("unrelated file was removed")
+	}
+	if _, err := os.Stat(matches[0]); err != nil {
+		t.Fatal("fresh upload was removed")
+	}
 
 	// Local port forward to a TCP echo server "on the remote side".
 	echoLn, _ := net.Listen("tcp", "127.0.0.1:0")

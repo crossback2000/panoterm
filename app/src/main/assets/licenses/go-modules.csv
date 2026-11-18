@@ -7,11 +7,11 @@ github.com/golang/groupcache/lru,https://github.com/golang/groupcache/blob/2c02b
 github.com/google/btree,https://github.com/google/btree/blob/v1.1.3/LICENSE,Apache-2.0
 github.com/hdevalence/ed25519consensus,https://github.com/hdevalence/ed25519consensus/blob/v0.2.0/LICENSE,BSD-3-Clause
 github.com/huin/goupnp,https://github.com/huin/goupnp/blob/v1.3.0/LICENSE,BSD-2-Clause
-github.com/klauspost/compress,https://github.com/klauspost/compress/blob/v1.20.0/LICENSE,Apache-2.0
-github.com/klauspost/compress,https://github.com/klauspost/compress/blob/v1.20.0/LICENSE,BSD-3-Clause
-github.com/klauspost/compress,https://github.com/klauspost/compress/blob/v1.20.0/LICENSE,MIT
-github.com/klauspost/compress/internal/snapref,https://github.com/klauspost/compress/blob/v1.20.0/internal\snapref\LICENSE,BSD-3-Clause
-github.com/klauspost/compress/zstd/internal/xxhash,https://github.com/klauspost/compress/blob/v1.20.0/zstd\internal\xxhash\LICENSE.txt,MIT
+github.com/klauspost/compress,https://github.com/klauspost/compress/blob/v1.20.2/LICENSE,Apache-2.0
+github.com/klauspost/compress,https://github.com/klauspost/compress/blob/v1.20.2/LICENSE,BSD-3-Clause
+github.com/klauspost/compress,https://github.com/klauspost/compress/blob/v1.20.2/LICENSE,MIT
+github.com/klauspost/compress/internal/snapref,https://github.com/klauspost/compress/blob/v1.20.2/internal\snapref\LICENSE,BSD-3-Clause
+github.com/klauspost/compress/zstd/internal/xxhash,https://github.com/klauspost/compress/blob/v1.20.2/zstd\internal\xxhash\LICENSE.txt,MIT
 github.com/kr/fs,https://github.com/kr/fs/blob/v0.1.0/LICENSE,BSD-3-Clause
 github.com/mdlayher/socket,https://github.com/mdlayher/socket/blob/v0.7.0/LICENSE.md,MIT
 github.com/pires/go-proxyproto,https://github.com/pires/go-proxyproto/blob/v0.15.0/LICENSE,Apache-2.0
