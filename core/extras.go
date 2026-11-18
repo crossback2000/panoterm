@@ -28,10 +28,12 @@ func (s *Session) UploadFile(name string, data []byte) (string, error) {
 	}
 	defer c.Close()
 
-	dir := ".cache/panoterm"
+	dir := uploadDir
 	if err := c.MkdirAll(dir); err != nil {
 		return "", fmt.Errorf("mkdir %s: %w", dir, err)
 	}
+	// Screenshots can be sensitive: keep them readable by the user only.
+	_ = c.Chmod(dir, 0o700)
 	base := path.Base(strings.ReplaceAll(name, "\\", "/"))
 	base = strings.Map(func(r rune) rune {
 		if r == '/' || r == ' ' || r < 0x20 {
@@ -47,6 +49,7 @@ func (s *Session) UploadFile(name string, data []byte) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	_ = c.Chmod(p, 0o600) // before any data is written
 	if _, err := f.Write(data); err != nil {
 		f.Close()
 		return "", err
@@ -54,10 +57,35 @@ func (s *Session) UploadFile(name string, data []byte) (string, error) {
 	if err := f.Close(); err != nil {
 		return "", err
 	}
+	pruneUploads(c, dir, time.Now().Add(-uploadMaxAge))
 	if abs, err := c.RealPath(p); err == nil {
 		return abs, nil
 	}
 	return p, nil
+}
+
+const (
+	uploadDir    = ".cache/panoterm"
+	uploadMaxAge = 7 * 24 * time.Hour
+)
+
+// pruneUploads removes our own earlier uploads ("<unix>-name") older than cutoff.
+// Best effort: errors are ignored.
+func pruneUploads(c *sftp.Client, dir string, cutoff time.Time) {
+	entries, err := c.ReadDir(dir)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		if !e.Mode().IsRegular() || !e.ModTime().Before(cutoff) {
+			continue
+		}
+		ts, _, ok := strings.Cut(e.Name(), "-")
+		if _, err := strconv.ParseInt(ts, 10, 64); !ok || err != nil {
+			continue
+		}
+		_ = c.Remove(path.Join(dir, e.Name()))
+	}
 }
 
 // Exec runs a command on the server over a separate channel (no PTY, nothing shows

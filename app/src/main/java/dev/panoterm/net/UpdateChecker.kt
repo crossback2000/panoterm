@@ -53,12 +53,18 @@ class UpdateChecker(private val ctx: Context) {
     private val dir = File(ctx.cacheDir, "updates")
 
     init {
-        cached()?.let { u ->
-            val f = apkFile(u)
-            _state.value = if (f.exists() && verify(u, f) == null) State.Ready(u, f) else State.Available(u)
+        // Off the main thread: verify() hashes the whole APK, and this runs during App.onCreate.
+        scope.launch {
+            val u = cached()
+            // Keep only the APK of the pending update (exact name: "1.3.1" must not keep "1.3.10").
+            val keep = u?.let { apkFile(it).name }
+            dir.listFiles()?.forEach { if (it.name != keep) it.delete() }
+            if (u != null) {
+                val f = apkFile(u)
+                val st = if (f.exists() && verify(u, f) == null) State.Ready(u, f) else State.Available(u)
+                _state.compareAndSet(State.Idle, st)
+            }
         }
-        // Clean up APKs of versions we already run.
-        dir.listFiles()?.forEach { if (!it.name.contains(cached()?.version ?: "\u0000")) it.delete() }
     }
 
     private fun apkFile(u: Update) = File(dir, "PanoTerm-${u.version}.apk")
@@ -140,9 +146,11 @@ class UpdateChecker(private val ctx: Context) {
         if (u.apkUrl.isBlank()) { _state.value = State.Failed(u, "릴리스에 APK가 없습니다"); return }
         scope.launch {
             val f = apkFile(u)
+            // Already downloaded and intact (e.g. found again after a restart): no need to fetch it again.
+            if (f.exists() && verify(u, f) == null) { _state.value = State.Ready(u, f); maybeAuto(); return@launch }
+            val tmp = File(dir, f.name + ".part")
             try {
                 dir.mkdirs()
-                val tmp = File(dir, f.name + ".part")
                 val c = URL(u.apkUrl).openConnection() as HttpURLConnection
                 c.connectTimeout = 15000; c.readTimeout = 30000
                 c.setRequestProperty("User-Agent", "PanoTerm")
@@ -162,11 +170,13 @@ class UpdateChecker(private val ctx: Context) {
                         }
                     }
                 }
-                tmp.renameTo(f)
+                f.delete()
+                if (!tmp.renameTo(f)) throw java.io.IOException("파일을 저장하지 못했습니다")
                 verify(u, f)?.let { err -> f.delete(); _state.value = State.Failed(u, err); return@launch }
                 _state.value = State.Ready(u, f)
                 maybeAuto()
             } catch (e: Exception) {
+                tmp.delete()
                 _state.value = State.Failed(u, "다운로드 실패: ${e.message}")
             }
         }
@@ -185,8 +195,12 @@ class UpdateChecker(private val ctx: Context) {
             ?: return "APK를 읽을 수 없습니다"
         if (archive.packageName != ctx.packageName) return "다른 앱의 APK입니다"
         val mine = pm.getPackageInfo(ctx.packageName, PackageManager.GET_SIGNING_CERTIFICATES)
-        val a = archive.signingInfo?.apkContentsSigners?.map { it.toByteArray().contentHashCode() }?.toSet()
-        val b = mine.signingInfo?.apkContentsSigners?.map { it.toByteArray().contentHashCode() }?.toSet()
+        // Compare SHA-256 digests of the whole certificates (not a 32-bit hashCode).
+        fun certs(info: android.content.pm.PackageInfo) = info.signingInfo?.apkContentsSigners
+            ?.map { MessageDigest.getInstance("SHA-256").digest(it.toByteArray()).joinToString("") { x -> "%02x".format(x) } }
+            ?.toSet()?.takeIf { it.isNotEmpty() }
+        val a = certs(archive)
+        val b = certs(mine)
         if (a == null || b == null || a != b) return "서명이 지금 앱과 다릅니다. 설치하지 않습니다."
         return null
     }

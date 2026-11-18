@@ -175,7 +175,12 @@ fun TerminalScreen(
 
     var topBarEdit by remember { mutableStateOf(false) }
 
-    fun openUrl(url: String) = runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+    fun openUrl(url: String) {
+        if (!dev.panoterm.term.TerminalWebView.isWebUrl(url)) return
+        runCatching {
+            ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE))
+        }
+    }
 
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri == null) return@rememberLauncherForActivityResult
