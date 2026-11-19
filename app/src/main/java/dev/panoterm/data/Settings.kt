@@ -26,6 +26,8 @@ class Settings(ctx: Context) {
         val twoFingerEsc: Boolean = true,
         /** Autocomplete bubbles (Claude slash commands, paths, command names). */
         val autocomplete: Boolean = true,
+        /** Status tabs under the top bar: which session / tmux window is working or waiting. */
+        val agentTabs: Boolean = true,
         /** Terminal renderer: auto (WebGL on hardware GPU, else Canvas) | webgl | canvas | dom. */
         val renderer: String = "auto",
         val updateCheck: Boolean = true,
@@ -55,6 +57,7 @@ class Settings(ctx: Context) {
         approvalOverlay = prefs.getBoolean("approvalOverlay", true),
         twoFingerEsc = prefs.getBoolean("twoFingerEsc", true),
         autocomplete = prefs.getBoolean("autocomplete", true),
+        agentTabs = prefs.getBoolean("agentTabs", true),
         renderer = prefs.getString("renderer", "auto")!!,
         updateCheck = prefs.getBoolean("updateCheck", true),
         autoUpdate = prefs.getBoolean("autoUpdate", true),
@@ -90,6 +93,7 @@ class Settings(ctx: Context) {
             .putBoolean("approvalOverlay", v.approvalOverlay)
             .putBoolean("twoFingerEsc", v.twoFingerEsc)
             .putBoolean("autocomplete", v.autocomplete)
+            .putBoolean("agentTabs", v.agentTabs)
             .putString("renderer", v.renderer)
             .putBoolean("updateCheck", v.updateCheck)
             .putBoolean("autoUpdate", v.autoUpdate)

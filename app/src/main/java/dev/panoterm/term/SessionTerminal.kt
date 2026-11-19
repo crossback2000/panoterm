@@ -46,7 +46,11 @@ class SessionTerminal(private val app: App, private val session: TermSession) {
             session.appCursor = appCursor
             session.bracketedPaste = bracketedPaste
         }
-        override fun onPrompt(prompt: ApprovalPrompt?) { this@SessionTerminal.prompt = prompt; ui?.onPrompt(prompt) }
+        override fun onPrompt(prompt: ApprovalPrompt?) {
+            this@SessionTerminal.prompt = prompt
+            session.activity.promptOnScreen = prompt != null
+            ui?.onPrompt(prompt)
+        }
         override fun onTables(count: Int) { tables = count; ui?.onTables(count) }
         override fun onSelection(active: Boolean, dragging: Boolean, rect: Rect?) {
             selected = active

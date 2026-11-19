@@ -119,6 +119,9 @@ fun SettingsScreen(
             Toggle("입력 자동완성", "/ 누르면 Claude 명령, cd ser 하면 service/ 같은 후보를 말풍선으로 보여줘요", v.autocomplete) { b ->
                 app.settings.update { it.copy(autocomplete = b) }
             }
+            Toggle("작업 상태 탭", "세션·tmux 창마다 작업 중(파랑)/승인 대기(주황)를 위쪽 탭에 표시, 탭하면 바로 전환", v.agentTabs) { b ->
+                app.settings.update { it.copy(agentTabs = b) }
+            }
             Toggle("승인 버튼 표시", "\"Do you want to proceed?\" 같은 선택지를 큰 버튼으로", v.approvalOverlay) { b ->
                 app.settings.update { it.copy(approvalOverlay = b) }
             }

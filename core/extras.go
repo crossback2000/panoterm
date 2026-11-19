@@ -22,11 +22,10 @@ import (
 // UploadFile stores data under ~/.cache/panoterm/ on the server and returns the
 // absolute remote path (suitable for pasting into a Claude Code prompt).
 func (s *Session) UploadFile(name string, data []byte) (string, error) {
-	c, err := sftp.NewClient(s.client)
+	c, err := s.sftpc()
 	if err != nil {
-		return "", fmt.Errorf("sftp: %w", err)
+		return "", err
 	}
-	defer c.Close()
 
 	dir := uploadDir
 	if err := c.MkdirAll(dir); err != nil {
@@ -47,6 +46,7 @@ func (s *Session) UploadFile(name string, data []byte) (string, error) {
 	p := path.Join(dir, fmt.Sprintf("%d-%s", time.Now().Unix(), base))
 	f, err := c.OpenFile(p, os.O_WRONLY|os.O_CREATE|os.O_TRUNC)
 	if err != nil {
+		s.sftpFailed(c, err)
 		return "", err
 	}
 	_ = c.Chmod(p, 0o600) // before any data is written

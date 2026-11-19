@@ -97,6 +97,19 @@ class TermSession(
     private val _noTmux = MutableStateFlow(false)
     val noTmux: StateFlow<Boolean> = _noTmux
 
+    /** Output-based activity of this session (see [ActivityTracker]). */
+    val activity = ActivityTracker()
+    private val _agent = MutableStateFlow(AgentState.OFFLINE)
+    /** What the agent(s) in this session are doing, for the status tabs (updated every second). */
+    val agent: StateFlow<AgentState> = _agent
+    private val _windows = MutableStateFlow<List<TmuxWindow>>(emptyList())
+    /** The tmux windows of this session with their state (empty without tmux or before the first poll). */
+    val windows: StateFlow<List<TmuxWindow>> = _windows
+    private val poller = Executors.newSingleThreadExecutor()
+    @Volatile private var polling = false
+    private var lastPoll = 0L
+    private var pollFailures = 0
+
     @Volatile var appCursor = false
     @Volatile var bracketedPaste = false
 
@@ -119,9 +132,13 @@ class TermSession(
 
     private val scanner = OutputScanner(
         onBell = {
+            activity.onAttention()
             if (app.settings.current.notifyOnBell) notifyUser(host.title, "입력을 기다리고 있습니다 (터미널 벨)")
         },
-        onNotify = { title, body -> notifyUser(title.ifBlank { host.title }, body.ifBlank { "알림" }) },
+        onNotify = { title, body ->
+            activity.onAttention()
+            notifyUser(title.ifBlank { host.title }, body.ifBlank { "알림" })
+        },
         onClipboard = { text ->
             main.post {
                 app.getSystemService(ClipboardManager::class.java)
@@ -170,6 +187,7 @@ class TermSession(
 
     fun send(b: ByteArray) {
         if (b.isEmpty()) return
+        activity.onInput()
         writer.execute { runCatching { go?.write(b) } }
     }
 
@@ -235,6 +253,7 @@ class TermSession(
                 _forwards.value = emptyList()
                 _state.value = State.CONNECTED
                 writer.execute { runCatching { s.resize(cols.toLong(), rows.toLong()) } }
+                main.post { startTicker() }
             } catch (e: Exception) {
                 if (gen == generation) {
                     val msg = e.message ?: e.toString()
@@ -258,6 +277,7 @@ class TermSession(
         go = null
         _forwards.value = emptyList()
         _state.value = State.CLOSED
+        main.post { tick() }
     }
 
     /** Network came back: retry right away instead of waiting for the backoff. */
@@ -312,6 +332,9 @@ class TermSession(
     }
 
     companion object {
+        /** Start of [writeFile]'s error when the file changed on the server (core.ConflictPrefix). */
+        const val CONFLICT = "conflict:"
+
         /**
          * Shell command that attaches to (or creates) tmux session [name].
          *
@@ -367,6 +390,7 @@ class TermSession(
     private fun listener(gen: Int) = object : SessionListener {
         override fun onData(data: ByteArray) {
             if (gen != generation) return
+            activity.onOutput()
             scanner.feed(data)
             emit(data)
         }
@@ -377,6 +401,7 @@ class TermSession(
             _forwards.value = emptyList()
             _message.value = reason
             _state.value = State.CLOSED
+            main.post { tick() }
             note("연결 종료: $reason")
             maybeScheduleReconnect()
         }
@@ -433,6 +458,90 @@ class TermSession(
             }
             main.post { done(r) }
         }
+    }
+
+    // ---- agent status (status tabs) ----
+
+    private val ticker = object : Runnable {
+        override fun run() {
+            tick()
+            if (_state.value == State.CONNECTED) main.postDelayed(this, 1000)
+        }
+    }
+
+    private fun startTicker() {
+        main.removeCallbacks(ticker)
+        main.post(ticker)
+    }
+
+    /** Main thread. Recomputes [agent] and starts a tmux poll when one is due. */
+    private fun tick() {
+        if (_state.value != State.CONNECTED) {
+            _agent.value = AgentState.OFFLINE
+            _windows.value = emptyList()
+            return
+        }
+        val visible = app.isForeground && app.visibleSessionId == id
+        if (visible) activity.seen()
+        val windowsState = _windows.value.fold(AgentState.IDLE) { acc, w -> maxState(acc, w.state) }
+        _agent.value = maxState(activity.state(), windowsState)
+
+        // Nobody sees the tabs while the app is in the background: no polling then.
+        val name = tmuxName()
+        val interval = if (visible) 2000L else 5000L
+        val now = System.currentTimeMillis()
+        if (name == null || !app.isForeground || !app.settings.current.agentTabs || polling || now - lastPoll < interval) return
+        lastPoll = now
+        polling = true
+        poller.execute {
+            try { pollTmux(name) } finally { polling = false }
+        }
+    }
+
+    /** Poller thread. */
+    private fun pollTmux(name: String) {
+        val out = execQuiet(TmuxStatus.pollCommand(name), 4000)
+        if (out == null) {
+            // Keep the last picture through a hiccup, drop it when the server stops answering.
+            if (++pollFailures >= 3) _windows.value = emptyList()
+            return
+        }
+        pollFailures = 0
+        _windows.value = TmuxStatus.parse(out, _windows.value.associateBy { it.index })
+    }
+
+    /** Shows tmux window [index] in this session's terminal (the attached tmux client switches). */
+    fun selectTmuxWindow(index: Int) {
+        val name = tmuxName() ?: return
+        // Show the switch right away; the next poll confirms it.
+        _windows.value = _windows.value.map { it.copy(active = it.index == index) }
+        poller.execute {
+            execQuiet(TmuxStatus.selectCommand(name, index))
+            pollTmux(name)
+        }
+    }
+
+    // ---- files (SFTP browser) ----
+
+    /** Blocking; call off the main thread. JSON listing of [dir] ("" = home). */
+    fun listDir(dir: String): String = (go ?: throw IllegalStateException("연결되어 있지 않습니다")).listDir(dir)
+
+    /** Blocking; call off the main thread. */
+    fun readFile(path: String, maxBytes: Long): core.FileData =
+        (go ?: throw IllegalStateException("연결되어 있지 않습니다")).readFile(path, maxBytes)
+
+    /**
+     * Blocking; call off the main thread. Returns the new modification time. Throws with a
+     * message starting with [CONFLICT] when the file changed on the server since
+     * it was read ([expectModTime] <= 0 skips that check).
+     */
+    fun writeFile(path: String, data: ByteArray, expectModTime: Long, expectSize: Long): Long =
+        (go ?: throw IllegalStateException("연결되어 있지 않습니다")).writeFile(path, data, expectModTime, expectSize)
+
+    /** Blocking. The folder the shell (tmux pane) is in, or null. */
+    fun currentDir(): String? {
+        val out = execQuiet(Completion.cwdCommand(tmuxName(), "~")) ?: return null
+        return out.lineSequence().firstOrNull { it.startsWith("CWD:") }?.removePrefix("CWD:")?.trim()?.ifBlank { null }
     }
 
     fun stopForward(f: PortForward) {
