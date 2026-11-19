@@ -30,6 +30,7 @@ val ALL_TOP_ACTIONS: List<TopAction> = listOf(
     TopAction("reader", "📖", "읽기 모드"),
     TopAction("palette", "⚡", "명령 팔레트"),
     TopAction("image", "🖼", "이미지 보내기"),
+    TopAction("files", "📁", "파일 탐색기"),
     TopAction("ports", "⇄", "포트 미리보기"),
     TopAction("paste", "📋", "붙여넣기"),
     TopAction("fontUp", "A+", "글자 크게"),
@@ -39,7 +40,7 @@ val ALL_TOP_ACTIONS: List<TopAction> = listOf(
     TopAction("close", "✕", "연결 끊고 닫기"),
 )
 
-val DEFAULT_TOP_IDS = listOf("width", "lens", "reader", "palette")
+val DEFAULT_TOP_IDS = listOf("width", "lens", "files", "palette")
 
 fun topActionsFor(ids: List<String>): List<TopAction> {
     val byId = ALL_TOP_ACTIONS.associateBy { it.id }

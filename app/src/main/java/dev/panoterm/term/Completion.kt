@@ -83,6 +83,20 @@ object Completion {
      * First output line is "CWD:<path>".
      */
     fun listingCommand(tmuxSession: String?, fallbackCwd: String, dir: String): String {
+        val s = StringBuilder(cwdScript(tmuxSession, fallbackCwd))
+        s.append("d=${shq(dir)}\n")
+        s.append("case \"\$d\" in \"~\"*) d=\"\$HOME\${d#\"~\"}\";; esac\n")
+        s.append("echo \"CWD:\$(pwd)\"\n")
+        s.append("ls -1Ap -- \"\${d:-.}\" 2>/dev/null | head -n 500\n")
+        return "sh -c " + shq(s.toString())
+    }
+
+    /** Server-side script printing only "CWD:<path>" (see [listingCommand]). */
+    fun cwdCommand(tmuxSession: String?, fallbackCwd: String): String =
+        "sh -c " + shq(cwdScript(tmuxSession, fallbackCwd) + "echo \"CWD:\$(pwd)\"\n")
+
+    /** cd to the tmux pane's folder, else [fallbackCwd], else home. */
+    private fun cwdScript(tmuxSession: String?, fallbackCwd: String): String {
         val s = StringBuilder()
         s.append("c=\n")
         if (tmuxSession != null) {
@@ -92,11 +106,7 @@ object Completion {
         s.append("[ -z \"\$c\" ] && c=${shq(fallbackCwd)}\n")
         s.append("case \"\$c\" in \"~\"*) c=\"\$HOME\${c#\"~\"}\";; esac\n")
         s.append("cd \"\$c\" 2>/dev/null || cd\n")
-        s.append("d=${shq(dir)}\n")
-        s.append("case \"\$d\" in \"~\"*) d=\"\$HOME\${d#\"~\"}\";; esac\n")
-        s.append("echo \"CWD:\$(pwd)\"\n")
-        s.append("ls -1Ap -- \"\${d:-.}\" 2>/dev/null | head -n 500\n")
-        return "sh -c " + shq(s.toString())
+        return s.toString()
     }
 
     /** Command names on the server (login PATH so Homebrew etc. are included). */

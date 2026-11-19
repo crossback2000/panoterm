@@ -14,6 +14,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/pkg/sftp"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -50,6 +51,9 @@ type Session struct {
 	done      chan struct{}
 	closeOnce sync.Once
 	writeMu   sync.Mutex
+
+	sftpMu     sync.Mutex
+	sftpClient *sftp.Client // shared, opened on first use (files.go)
 }
 
 func Connect(n *Node, o *ConnectOptions, v HostKeyVerifier, l SessionListener) (*Session, error) {
@@ -231,6 +235,7 @@ func (s *Session) finish(reason string) {
 	s.closeOnce.Do(func() {
 		close(s.done)
 		s.closeForwards()
+		s.closeSFTP()
 		s.sess.Close()
 		s.client.Close()
 		s.l.OnClosed(reason)

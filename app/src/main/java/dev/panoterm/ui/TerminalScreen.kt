@@ -103,6 +103,7 @@ fun TerminalScreen(
     var sessionMenu by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
     var paletteOpen by remember { mutableStateOf(false) }
+    var filesOpen by remember { mutableStateOf(false) }
     var hasSelection by remember { mutableStateOf(false) }
     val snippets by app.snippets.items.collectAsState()
 
@@ -210,6 +211,7 @@ fun TerminalScreen(
             "palette" -> paletteOpen = true
             "image" -> imagePickerLaunch()
             "ports" -> portsOpen = true
+            "files" -> filesOpen = true
             "paste" -> paste()
             "fontUp" -> changeFont(+1)
             "fontDown" -> changeFont(-1)
@@ -230,6 +232,7 @@ fun TerminalScreen(
             cs && e.keyCode == KeyEvent.KEYCODE_R -> { overlay = Overlay.READER; true }
             cs && e.keyCode == KeyEvent.KEYCODE_W -> { cycleWidth(); true }
             cs && e.keyCode == KeyEvent.KEYCODE_P -> { paletteOpen = true; true }
+            cs && e.keyCode == KeyEvent.KEYCODE_E -> { filesOpen = true; true }
             ca && (e.keyCode == KeyEvent.KEYCODE_EQUALS || e.keyCode == KeyEvent.KEYCODE_PLUS || e.keyCode == KeyEvent.KEYCODE_NUMPAD_ADD) -> { changeFont(+1); true }
             ca && (e.keyCode == KeyEvent.KEYCODE_MINUS || e.keyCode == KeyEvent.KEYCODE_NUMPAD_SUBTRACT) -> { changeFont(-1); true }
             ca && e.keyCode == KeyEvent.KEYCODE_T -> { showTmux = !showTmux; true }
@@ -313,6 +316,19 @@ fun TerminalScreen(
         }
     }
 
+    // While the file browser is open, hardware keys go to its text fields, not the terminal.
+    DisposableEffect(filesOpen) {
+        if (filesOpen) {
+            if (activity.keyTarget === input) activity.keyTarget = null
+        }
+        onDispose {
+            if (filesOpen) {
+                activity.keyTarget = input
+                input.requestFocus()
+            }
+        }
+    }
+
     DisposableEffect(settings.keepScreenOn) {
         view.keepScreenOn = settings.keepScreenOn
         onDispose { view.keepScreenOn = false }
@@ -379,6 +395,8 @@ fun TerminalScreen(
                     }
                 }
             }
+
+            if (settings.agentTabs) AgentTabs(sessions, session, onSwitch)
 
             if (noTmux && !noTmuxDismissed) {
                 androidx.compose.runtime.LaunchedEffect(Unit) { showTmux = false } // tmux keys would just type letters
@@ -477,6 +495,15 @@ fun TerminalScreen(
                 initialFont = fontSize,
             ) { overlay = Overlay.NONE }
             Overlay.NONE -> {}
+        }
+
+        if (filesOpen) {
+            FileBrowser(
+                session = session,
+                fontSize = fontSize,
+                onInsertPath = { p -> session.paste(p) },
+                onClose = { filesOpen = false },
+            )
         }
     }
 
