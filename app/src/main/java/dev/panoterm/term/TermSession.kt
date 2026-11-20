@@ -140,7 +140,7 @@ class TermSession(
             notifyUser(title.ifBlank { host.title }, body.ifBlank { "알림" })
         },
         onClipboard = { text ->
-            main.post {
+            if (app.settings.current.remoteClipboard) main.post {
                 app.getSystemService(ClipboardManager::class.java)
                     .setPrimaryClip(ClipData.newPlainText("remote", text))
             }
@@ -194,7 +194,8 @@ class TermSession(
     fun send(s: String) = send(s.toByteArray())
 
     fun paste(text: String) {
-        val t = text.replace("\r\n", "\r").replace('\n', '\r')
+        val t = sanitizePaste(text)
+        if (t.isEmpty()) return
         send(if (bracketedPaste) "\u001b[200~$t\u001b[201~" else t)
     }
 
@@ -332,6 +333,16 @@ class TermSession(
     }
 
     companion object {
+        /**
+         * Pasted text with line endings as CR and every control character except Tab and CR
+         * removed. Without this a clipboard holding "ESC[201~" (e.g. set by a server through
+         * OSC 52) would end bracketed paste early and run whatever follows as typed commands.
+         */
+        fun sanitizePaste(text: String): String {
+            val t = text.replace("\r\n", "\r").replace('\n', '\r')
+            return t.filter { c -> c == '\t' || c == '\r' || !(c < ' ' || c == '\u007f' || c in '\u0080'..'\u009f') }
+        }
+
         /** Start of [writeFile]'s error when the file changed on the server (core.ConflictPrefix). */
         const val CONFLICT = "conflict:"
 

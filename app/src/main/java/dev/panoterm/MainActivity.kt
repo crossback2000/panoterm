@@ -5,6 +5,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.SystemClock
+import android.view.InputDevice
 import android.view.KeyEvent
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -186,9 +187,10 @@ class MainActivity : FragmentActivity() {
      * Hardware keys are taken here, before Compose focus handling, so Tab / arrows /
      * Esc never move UI focus and Shift+Tab etc. reach the terminal.
      */
-    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+    override fun dispatchKeyEvent(original: KeyEvent): Boolean {
         val t = keyTarget
         if (t != null && t.isAttachedToWindow && !locked.value) {
+            val event = backAsEscape(original) ?: original
             // Volume-down as a sticky Ctrl (optional).
             if (event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN && App.instance.settings.current.volumeAsCtrl) {
                 if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) t.toggleCtrl()
@@ -205,7 +207,25 @@ class MainActivity : FragmentActivity() {
                 }
             }
         }
-        return super.dispatchKeyEvent(event)
+        return super.dispatchKeyEvent(original)
+    }
+
+    /**
+     * Samsung (and some keyboard layouts) deliver the physical Esc key as BACK, or Android turns
+     * it into a fallback BACK, which would leave the terminal. While the terminal has the keys,
+     * a BACK from an external hardware keyboard is Esc. The on-screen back gesture comes from a
+     * virtual device and still navigates.
+     */
+    private fun backAsEscape(e: KeyEvent): KeyEvent? {
+        if (e.keyCode != KeyEvent.KEYCODE_BACK) return null
+        val dev = e.device
+        val hardwareKeyboard = dev != null && !dev.isVirtual && dev.isExternal &&
+            dev.keyboardType == InputDevice.KEYBOARD_TYPE_ALPHABETIC
+        if (!hardwareKeyboard && (e.flags and KeyEvent.FLAG_FALLBACK) == 0) return null
+        return KeyEvent(
+            e.downTime, e.eventTime, e.action, KeyEvent.KEYCODE_ESCAPE, e.repeatCount, e.metaState,
+            e.deviceId, e.scanCode, e.flags and KeyEvent.FLAG_FALLBACK.inv(), e.source,
+        )
     }
 }
 
