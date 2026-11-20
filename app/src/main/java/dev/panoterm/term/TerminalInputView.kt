@@ -6,15 +6,21 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.EditorInfo
+import android.view.inputmethod.ExtractedText
+import android.view.inputmethod.ExtractedTextRequest
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
+import android.view.inputmethod.SurroundingText
+import android.view.inputmethod.TextAttribute
 import dev.panoterm.data.Settings
 
 /**
  * Invisible view that owns keyboard focus for the terminal.
- * - Soft keyboard text arrives through the InputConnection.
- * - Hardware (K380) keys are routed here from MainActivity.dispatchKeyEvent.
- * Also owns sticky Ctrl/Alt (key bar), CapsLock-as-Ctrl and the hardware Hangul mode.
+ * - The phone keyboard edits a real text buffer ([ImeMirror]); what changes in it is sent to the
+ *   terminal. Composition (Hangul, 천지인, kana ...) stays with the keyboard, whichever it is.
+ * - Hardware (K380) keys reach [handleHardwareKey] from MainActivity.dispatchKeyEvent, after the
+ *   phone keyboard had its turn (it composes Hangul for hardware keyboards too).
+ * Also owns sticky Ctrl/Alt (key bar), CapsLock-as-Ctrl and the optional in-app Hangul mode.
  */
 class TerminalInputView(ctx: Context) : View(ctx) {
     var onBytes: (ByteArray) -> Unit = {}
@@ -33,19 +39,19 @@ class TerminalInputView(ctx: Context) : View(ctx) {
         private set
     var stickyAlt = false
         private set
+    /** In-app Hangul composition for hardware keys (only with Settings.appHangul). */
     var hangulMode = false
         private set
 
     private val hangul = Hangul()
     private var capsHeld = false
 
-    // Soft-keyboard composition. sendText() would flush it again, so IME text is sent raw here.
-    private val ime = ImeComposition(
-        send = { sendImeText(it) },
-        show = { onComposing(it) },
-        sendPlain = { onBytes(it.toByteArray()) },
-    )
-    private fun flushImeComposing() = ime.flush()
+    private val mirror = ImeMirror()
+    private val imm get() = context.getSystemService(InputMethodManager::class.java)
+    /** Bumped for every new InputConnection: calls on an older one are ignored. */
+    private var icGeneration = 0
+    /** Selection/composition last reported to the keyboard. */
+    private var reported = IntArray(4)
 
     init {
         isFocusable = true
@@ -54,7 +60,7 @@ class TerminalInputView(ctx: Context) : View(ctx) {
 
     fun showKeyboard() {
         requestFocus()
-        context.getSystemService(InputMethodManager::class.java).showSoftInput(this, 0)
+        imm.showSoftInput(this, 0)
     }
 
     fun toggleCtrl() { stickyCtrl = !stickyCtrl; onStickyChanged(stickyCtrl, stickyAlt) }
@@ -79,6 +85,76 @@ class TerminalInputView(ctx: Context) : View(ctx) {
         if (s.isNotEmpty()) onBytes(s.toByteArray())
     }
 
+    // ---------------------------------------------------------------- keyboard text buffer
+
+    /** Sends a diff from the buffer. Returns false when the buffer no longer matches the terminal. */
+    private fun emit(out: ImeMirror.Out): Boolean {
+        if (out.deletes > 0) onBytes(ByteArray(out.deletes) { 0x7f })
+        if (out.text.isEmpty()) return true
+        val s = out.text.replace("\r\n", "\r").replace('\n', '\r')
+        if (stickyCtrl || stickyAlt) {
+            // Ctrl/Alt from the key bar applies to the first character typed.
+            val cp = s.codePointAt(0)
+            onBytes(KeyEncoder.encodeChar(cp, stickyCtrl, stickyAlt))
+            clearSticky()
+            val rest = s.substring(Character.charCount(cp))
+            if (rest.isNotEmpty()) onBytes(rest.toByteArray())
+            return false
+        }
+        onBytes(s.toByteArray())
+        return true
+    }
+
+    /** After the keyboard edited the buffer: send what changed and show the composition. */
+    private fun afterImeEdit() {
+        val inSync = emit(mirror.sync())
+        if (!inSync || (!mirror.hasComposing && mirror.length > ImeMirror.MAX_LENGTH)) {
+            resetMirror()
+            return
+        }
+        onComposing(mirror.composing)
+        reportSelection()
+    }
+
+    /**
+     * Before input that bypasses the keyboard's text field (key events, key bar, paste):
+     * sends what is on screen, the composition included, and starts a fresh buffer.
+     */
+    fun settle() {
+        if (mirror.isClean) return
+        val wasComposing = mirror.hasComposing
+        emit(mirror.flush())
+        afterReset(wasComposing)
+    }
+
+    private fun resetMirror() {
+        val wasComposing = mirror.hasComposing
+        mirror.reset()
+        afterReset(wasComposing)
+    }
+
+    private fun afterReset(wasComposing: Boolean) {
+        onComposing("")
+        if (wasComposing) {
+            // The keyboard still holds that composition: make it start over. Whatever it does with
+            // it on the old connection (some commit it after the key event) is ignored.
+            icGeneration++
+            imm.restartInput(this)
+        } else {
+            reportSelection()
+        }
+    }
+
+    /** Tells the keyboard where the cursor and composition are, as a text field would. */
+    private fun reportSelection() {
+        val s = intArrayOf(mirror.selStart, mirror.selEnd, mirror.compStart, mirror.compEnd)
+        if (s.contentEquals(reported)) return
+        reported = s
+        imm.updateSelection(this, s[0], s[1], s[2], s[3])
+    }
+
+    // ---------------------------------------------------------------- hardware keys
+
     private fun isHangulToggle(e: KeyEvent): Boolean = when (settings().hangulToggle) {
         Settings.HangulToggle.SHIFT_SPACE -> e.keyCode == KeyEvent.KEYCODE_SPACE && e.isShiftPressed && !e.isCtrlPressed && !e.isAltPressed
         Settings.HangulToggle.CTRL_SPACE -> e.keyCode == KeyEvent.KEYCODE_SPACE && e.isCtrlPressed && !e.isShiftPressed
@@ -86,22 +162,32 @@ class TerminalInputView(ctx: Context) : View(ctx) {
         Settings.HangulToggle.OFF -> false
     } || e.keyCode == KeyEvent.KEYCODE_LANGUAGE_SWITCH || e.keyCode == KeyEvent.KEYCODE_KANA
 
-    /** Hardware key down. Returns true if consumed. */
+    /** Hardware key down (or a key event the phone keyboard passed on). Returns true if consumed. */
     fun handleHardwareKey(e: KeyEvent): Boolean {
-        if (ime.isComposing) {
-            // ⌫ while composing belongs to the IME's composition: leave it to the IME.
-            if (e.keyCode == KeyEvent.KEYCODE_DEL) return false
-            if (!KeyEvent.isModifierKey(e.keyCode)) flushImeComposing()
-        }
         val capsAsCtrl = settings().capsAsCtrl
         if (capsAsCtrl && e.keyCode == KeyEvent.KEYCODE_CAPS_LOCK) { capsHeld = true; return true }
-        if (isHangulToggle(e)) { toggleHangul(); return true }
-        if (onShortcut(e)) return true
-
         val ctrl = e.isCtrlPressed || capsHeld || stickyCtrl
         val alt = e.isAltPressed || stickyAlt
+        val plain = !ctrl && !alt && !e.isMetaPressed
 
-        if (hangulMode && !ctrl && !alt && !e.isMetaPressed) {
+        // ⌫ the keyboard didn't handle itself: delete from the buffer it sees, so it stays in step.
+        if (e.keyCode == KeyEvent.KEYCODE_DEL && plain && !hangul.isComposing && !mirror.isEmpty) {
+            val wasComposing = mirror.hasComposing
+            if (mirror.backspace()) {
+                if (wasComposing) settle() else afterImeEdit()
+                return true
+            }
+        }
+        if (!KeyEvent.isModifierKey(e.keyCode)) settle()
+
+        val appHangul = settings().appHangul
+        if (!appHangul && hangulMode) { commitHangul(); hangulMode = false; onHangulChanged(false) }
+        if (appHangul && isHangulToggle(e)) { toggleHangul(); return true }
+        // Shift+Space switches the phone keyboard's language; never type a stray space for it.
+        if (!appHangul && e.keyCode == KeyEvent.KEYCODE_SPACE && e.isShiftPressed && plain) return true
+        if (onShortcut(e)) return true
+
+        if (hangulMode && plain) {
             if (e.keyCode == KeyEvent.KEYCODE_DEL && hangul.isComposing) {
                 hangul.backspace()
                 onComposing(hangul.composing)
@@ -129,9 +215,11 @@ class TerminalInputView(ctx: Context) : View(ctx) {
         return false
     }
 
+    // ---------------------------------------------------------------- key bar
+
     /** Key bar: special key by keycode (arrows, Tab, PgUp...). */
     fun sendKeyCode(keyCode: Int, shift: Boolean) {
-        flushImeComposing()
+        settle()
         if (hangul.isComposing) commitHangul()
         val s = KeyEncoder.special(keyCode, shift, stickyCtrl, stickyAlt, appCursor()) ?: return
         clearSticky()
@@ -140,33 +228,21 @@ class TerminalInputView(ctx: Context) : View(ctx) {
 
     /** Key bar text. A single character honours sticky Ctrl/Alt. */
     fun sendText(t: String) {
-        flushImeComposing()
-        sendImeText(t)
-    }
-
-    /** IME text (composition already resolved). A single character honours sticky Ctrl/Alt. */
-    private fun sendImeText(t: String) {
+        settle()
         if (t.isEmpty()) return
         if (hangul.isComposing) commitHangul()
-        val s = t.replace("\r\n", "\r").replace('\n', '\r')
-        if (stickyCtrl || stickyAlt) {
-            val cp = s.codePointAt(0)
-            onBytes(KeyEncoder.encodeChar(cp, stickyCtrl, stickyAlt))
-            clearSticky()
-            val rest = s.substring(Character.charCount(cp))
-            if (rest.isNotEmpty()) onBytes(rest.toByteArray())
-        } else {
-            onBytes(s.toByteArray())
-        }
+        emit(ImeMirror.Out(0, t))
     }
 
     /** Raw bytes from the key bar (Esc, ^C, tmux prefix...). Clears sticky modifiers. */
     fun sendRaw(s: String) {
-        flushImeComposing()
+        settle()
         if (hangul.isComposing) commitHangul()
         clearSticky()
         onBytes(s.toByteArray())
     }
+
+    // ---------------------------------------------------------------- InputConnection
 
     override fun onCheckIsTextEditor() = true
 
@@ -177,47 +253,122 @@ class TerminalInputView(ctx: Context) : View(ctx) {
         outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_EXTRACT_UI or
             EditorInfo.IME_FLAG_NO_FULLSCREEN or
             EditorInfo.IME_ACTION_NONE
-        return object : BaseInputConnection(this, false) {
-            override fun setComposingText(text: CharSequence, newCursorPosition: Int): Boolean {
-                ime.setComposing(text.toString()); return true
-            }
+        // A new connection starts from an empty field. (No restartInput here: we are inside one.)
+        if (!mirror.isClean) { emit(mirror.flush()); onComposing("") }
+        outAttrs.initialSelStart = 0
+        outAttrs.initialSelEnd = 0
+        reported = intArrayOf(0, 0, -1, -1)
+        return MirrorConnection(++icGeneration)
+    }
 
-            override fun finishComposingText(): Boolean { ime.finish(); return true }
+    private inner class MirrorConnection(private val gen: Int) : BaseInputConnection(this@TerminalInputView, false) {
+        private var batch = 0
+        private val live get() = gen == icGeneration
 
-            override fun commitText(text: CharSequence, newCursorPosition: Int): Boolean {
-                val t = text.toString()
-                // Keyboards send Enter as a key event, never inside committed text, so committed
-                // text with a line break is a paste (e.g. Gboard's clipboard).
-                if (t.length > 1 && (t.contains('\n') || t.contains('\r'))) {
-                    ime.finish()
-                    if (hangul.isComposing) commitHangul()
-                    clearSticky()
-                    onPaste(t)
-                } else {
-                    ime.commit(t)
-                }
-                return true
-            }
+        /** Runs an edit from the keyboard; syncs once the outermost batch ends. */
+        private inline fun edit(f: () -> Unit): Boolean {
+            if (!live) return false
+            f()
+            if (batch == 0) afterImeEdit()
+            return true
+        }
 
-            override fun performContextMenuAction(id: Int): Boolean {
-                if (id == android.R.id.paste || id == android.R.id.pasteAsPlainText) {
-                    flushImeComposing()
-                    onPasteRequest()
-                    return true
-                }
-                return super.performContextMenuAction(id)
-            }
+        override fun beginBatchEdit(): Boolean {
+            if (!live) return false
+            batch++
+            return true
+        }
 
-            override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
-                repeat(beforeLength.coerceAtMost(64)) { onBytes(byteArrayOf(0x7f)) }
-                return true
-            }
+        override fun endBatchEdit(): Boolean {
+            if (!live) return false
+            if (batch > 0) batch--
+            if (batch == 0) afterImeEdit()
+            return batch > 0
+        }
 
-            override fun performEditorAction(actionCode: Int): Boolean {
-                flushImeComposing()
-                onBytes("\r".toByteArray())
-                return true
+        override fun getTextBeforeCursor(n: Int, flags: Int): CharSequence? = if (live) mirror.textBeforeCursor(n) else null
+        override fun getTextAfterCursor(n: Int, flags: Int): CharSequence? = if (live) mirror.textAfterCursor(n) else null
+        override fun getSelectedText(flags: Int): CharSequence? = if (live) mirror.selectedText().ifEmpty { null } else null
+        override fun getCursorCapsMode(reqModes: Int) = 0
+
+        override fun getSurroundingText(beforeLength: Int, afterLength: Int, flags: Int): SurroundingText? {
+            if (!live) return null
+            val t = mirror.text
+            val a = minOf(mirror.selStart, mirror.selEnd); val b = maxOf(mirror.selStart, mirror.selEnd)
+            val from = maxOf(0, a - beforeLength); val to = minOf(t.length, b + afterLength)
+            return SurroundingText(t.substring(from, to), mirror.selStart - from, mirror.selEnd - from, from)
+        }
+
+        override fun getExtractedText(request: ExtractedTextRequest?, flags: Int): ExtractedText? {
+            if (!live) return null
+            return ExtractedText().apply {
+                text = mirror.text
+                startOffset = 0
+                partialStartOffset = -1
+                partialEndOffset = -1
+                selectionStart = mirror.selStart
+                selectionEnd = mirror.selEnd
             }
         }
+
+        override fun setComposingText(text: CharSequence, newCursorPosition: Int) =
+            edit { mirror.setComposingText(text.toString(), newCursorPosition) }
+
+        override fun setComposingRegion(start: Int, end: Int) = edit { mirror.setComposingRegion(start, end) }
+
+        override fun finishComposingText() = edit { mirror.finishComposingText() }
+
+        override fun setSelection(start: Int, end: Int) = edit { mirror.setSelection(start, end) }
+
+        override fun commitText(text: CharSequence, newCursorPosition: Int): Boolean {
+            if (!live) return false
+            val t = text.toString()
+            if (t.contains('\n') || t.contains('\r')) {
+                // Keyboards send Enter as a key event; a line break in committed text is either a
+                // lone Enter or a paste (e.g. Gboard's clipboard).
+                edit { mirror.finishComposingText() }
+                settle()
+                if (hangul.isComposing) commitHangul()
+                if (t.length > 1) { clearSticky(); onPaste(t) } else onBytes(byteArrayOf('\r'.code.toByte()))
+                return true
+            }
+            return edit { mirror.commitText(t, newCursorPosition) }
+        }
+
+        override fun replaceText(start: Int, end: Int, text: CharSequence, newCursorPosition: Int, textAttribute: TextAttribute?) =
+            edit { mirror.replaceText(start, end, text.toString(), newCursorPosition) }
+
+        override fun deleteSurroundingText(beforeLength: Int, afterLength: Int): Boolean {
+            var missing = 0
+            // Keyboards that delete without looking at the buffer still delete in the terminal.
+            return edit { missing = mirror.deleteSurroundingText(beforeLength, afterLength) }
+                .also { if (it && missing > 0) onBytes(ByteArray(missing.coerceAtMost(64)) { 0x7f }) }
+        }
+
+        override fun deleteSurroundingTextInCodePoints(beforeLength: Int, afterLength: Int): Boolean {
+            var missing = 0
+            return edit { missing = mirror.deleteSurroundingTextInCodePoints(beforeLength, afterLength) }
+                .also { if (it && missing > 0) onBytes(ByteArray(missing.coerceAtMost(64)) { 0x7f }) }
+        }
+
+        override fun sendKeyEvent(event: KeyEvent): Boolean = live && super.sendKeyEvent(event)
+
+        override fun performContextMenuAction(id: Int): Boolean {
+            if (!live) return false
+            if (id == android.R.id.paste || id == android.R.id.pasteAsPlainText) {
+                settle()
+                onPasteRequest()
+                return true
+            }
+            return super.performContextMenuAction(id)
+        }
+
+        override fun performEditorAction(actionCode: Int): Boolean {
+            if (!live) return false
+            settle()
+            onBytes("\r".toByteArray())
+            return true
+        }
+
     }
 }

@@ -69,7 +69,7 @@ Tailscale이 앱 안에 들어 있어서 폰에 Tailscale 앱을 따로 깔 필�
 | Shift+Tab | Claude 모드 전환 (`ESC [ Z`) |
 | Shift+Enter, Alt+Enter | Claude 입력창에서 줄바꿈 |
 | Ctrl+Backspace | 단어 지우기 |
-| Shift+Space | 한/영 전환 (설정에서 바꿀 수 있어요) |
+| Shift+Space | 한/영 전환 (휴대폰 키보드의 하드웨어 키보드 설정을 따라요) |
 | Ctrl+Shift+V / C | 붙여넣기 / 복사 |
 | Ctrl+Shift+F | 표 크게 보기 |
 | Ctrl+Shift+R | 읽기 모드 |
