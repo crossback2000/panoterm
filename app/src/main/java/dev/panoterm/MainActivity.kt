@@ -33,6 +33,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -266,11 +267,15 @@ private fun AppRoot(activity: MainActivity) {
         is Screen.Terminal -> {
             val session = app.sessions.get(s.sessionId)
             if (session == null) LaunchedEffect(s) { screen = Screen.Hosts }
-            else TerminalScreen(
-                app = app, session = session, activity = activity,
-                onBack = { screen = Screen.Hosts },
-                onSwitch = { screen = Screen.Terminal(it.id) },
-            )
+            // key(): a session switch must build a new screen. Reusing it left the new session's
+            // input view off-screen (hardware keys ignored, phone keyboard typing into the old session).
+            else key(session.id) {
+                TerminalScreen(
+                    app = app, session = session, activity = activity,
+                    onBack = { screen = Screen.Hosts },
+                    onSwitch = { screen = Screen.Terminal(it.id) },
+                )
+            }
         }
     }
     }

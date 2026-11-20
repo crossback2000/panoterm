@@ -100,20 +100,27 @@ fun SettingsScreen(
             Toggle("두 손가락 왼쪽 밀기 = Esc", "Claude 작업 중단할 때 편해요", v.twoFingerEsc) { b ->
                 app.settings.update { it.copy(twoFingerEsc = b) }
             }
-            Text("하드웨어 키보드 한/영 전환 키", style = MaterialTheme.typography.bodyLarge)
-            Settings.HangulToggle.entries.forEach { t ->
-                Row(
-                    Modifier.fillMaxWidth().clickable { app.settings.update { it.copy(hangulToggle = t) } },
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    RadioButton(selected = v.hangulToggle == t, onClick = { app.settings.update { it.copy(hangulToggle = t) } })
-                    Text(t.label)
+            Toggle(
+                "앱에서 한글 조합 (하드웨어 키보드)",
+                "보통은 끄세요: 휴대폰 키보드가 K380 한글도 조합해 줘요(삼성 키보드는 Shift+Space로 한/영). 휴대폰 키보드가 하드웨어 키보드 한글을 못 칠 때만 켜세요.",
+                v.appHangul,
+            ) { b -> app.settings.update { it.copy(appHangul = b) } }
+            if (v.appHangul) {
+                Text("앱 한/영 전환 키", style = MaterialTheme.typography.bodyLarge)
+                Settings.HangulToggle.entries.forEach { t ->
+                    Row(
+                        Modifier.fillMaxWidth().clickable { app.settings.update { it.copy(hangulToggle = t) } },
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected = v.hangulToggle == t, onClick = { app.settings.update { it.copy(hangulToggle = t) } })
+                        Text(t.label)
+                    }
                 }
+                Text(
+                    "휴대폰 키보드도 같은 키로 한/영을 바꾸면 둘이 엇갈려요. 휴대폰 키보드의 하드웨어 키보드 한/영 키와 다른 키를 고르세요. 앱이 한글일 때 상단에 '한'이 보여요.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
             }
-            Text(
-                "삼성 키보드가 Shift+Space를 먼저 가로채면 그쪽 한글 입력이 사용됩니다 (그래도 동작합니다).",
-                style = MaterialTheme.typography.bodySmall,
-            )
 
             Section("Claude Code")
             Toggle("입력 자동완성", "/ 누르면 Claude 명령, cd ser 하면 service/ 같은 후보를 말풍선으로 보여줘요", v.autocomplete) { b ->

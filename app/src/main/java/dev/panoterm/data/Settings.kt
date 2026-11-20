@@ -19,6 +19,11 @@ class Settings(ctx: Context) {
         val keyAuth: Boolean = false,
         val capsAsCtrl: Boolean = false,
         val volumeAsCtrl: Boolean = false,
+        /**
+         * Compose Hangul in the app for hardware keys. Off: the phone keyboard composes (it does
+         * for hardware keyboards too), so there is only one composer and one 한/영 state.
+         */
+        val appHangul: Boolean = false,
         val hangulToggle: HangulToggle = HangulToggle.SHIFT_SPACE,
         val notifyOnBell: Boolean = true,
         val keepScreenOn: Boolean = true,
@@ -50,6 +55,7 @@ class Settings(ctx: Context) {
         keyAuth = prefs.getBoolean("keyAuth", false),
         capsAsCtrl = prefs.getBoolean("capsAsCtrl", false),
         volumeAsCtrl = prefs.getBoolean("volumeAsCtrl", false),
+        appHangul = prefs.getBoolean("appHangul", false),
         hangulToggle = runCatching { HangulToggle.valueOf(prefs.getString("hangulToggle", null) ?: "") }
             .getOrDefault(HangulToggle.SHIFT_SPACE),
         notifyOnBell = prefs.getBoolean("notifyOnBell", true),
@@ -87,6 +93,7 @@ class Settings(ctx: Context) {
             .putBoolean("keyAuth", v.keyAuth)
             .putBoolean("capsAsCtrl", v.capsAsCtrl)
             .putBoolean("volumeAsCtrl", v.volumeAsCtrl)
+            .putBoolean("appHangul", v.appHangul)
             .putString("hangulToggle", v.hangulToggle.name)
             .putBoolean("notifyOnBell", v.notifyOnBell)
             .putBoolean("keepScreenOn", v.keepScreenOn)

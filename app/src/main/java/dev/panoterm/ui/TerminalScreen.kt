@@ -94,6 +94,8 @@ fun TerminalScreen(
     var fixedCols by remember(session.id) { mutableIntStateOf(app.hosts.get(session.host.id)?.fixedCols ?: 0) }
     var ctrlOn by remember { mutableStateOf(false) }
     var altOn by remember { mutableStateOf(false) }
+    /** In-app Hangul mode for hardware keys (Settings.appHangul). */
+    var hangulOn by remember { mutableStateOf(false) }
     var showTmux by remember(session.id) { mutableStateOf(session.host.tmux) }
     var overlay by remember { mutableStateOf(Overlay.NONE) }
     var lensTables by remember { mutableStateOf<List<TermTable>>(emptyList()) }
@@ -146,7 +148,7 @@ fun TerminalScreen(
     fun paste() {
         val cm = ctx.getSystemService(ClipboardManager::class.java)
         val text = cm.primaryClip?.takeIf { it.itemCount > 0 }?.getItemAt(0)?.coerceToText(ctx)?.toString()
-        if (!text.isNullOrEmpty()) session.paste(text)
+        if (!text.isNullOrEmpty()) { input.settle(); session.paste(text) }
     }
 
     fun copySelection() {
@@ -161,7 +163,7 @@ fun TerminalScreen(
     /** Types the selected text at the prompt (no clipboard involved). */
     fun typeSelection() {
         webView.selectionText { t ->
-            if (t.isNotBlank()) session.paste(t.trimEnd())
+            if (t.isNotBlank()) { input.settle(); session.paste(t.trimEnd()) }
             webView.clearSelectionText()
         }
     }
@@ -195,6 +197,7 @@ fun TerminalScreen(
         Toast.makeText(ctx, "업로드 중… (${bytes.size / 1024} KB)", Toast.LENGTH_SHORT).show()
         session.upload("image.$ext", bytes) { r ->
             r.onSuccess { path ->
+                input.settle()
                 session.send("$path ")
                 Toast.makeText(ctx, "업로드 완료: 경로를 입력했습니다", Toast.LENGTH_SHORT).show()
             }.onFailure { Toast.makeText(ctx, "업로드 실패: ${it.message}", Toast.LENGTH_LONG).show() }
@@ -257,6 +260,8 @@ fun TerminalScreen(
         input.onPaste = { session.paste(it) }
         input.onPasteRequest = { paste() }
         input.onStickyChanged = { c, a -> ctrlOn = c; altOn = a }
+        input.onHangulChanged = { hangulOn = it }
+        hangulOn = input.hangulMode
         input.settings = { app.settings.current }
 
         terminal.ui = object : SessionTerminal.Ui {
@@ -291,6 +296,7 @@ fun TerminalScreen(
             override fun onGesture(name: String) {
                 // Two-finger swipe left = Esc (interrupt Claude).
                 if (name == "swipe-left" && app.settings.current.twoFingerEsc) {
+                    input.settle()
                     session.send("\u001b")
                     view.performHapticFeedback(android.view.HapticFeedbackConstants.CONFIRM)
                     Toast.makeText(ctx, "Esc", Toast.LENGTH_SHORT).show()
@@ -351,6 +357,7 @@ fun TerminalScreen(
                         }
                     )
                 )
+                if (hangulOn) Text(" 한", color = Color(0xFF64B5F6), fontSize = 13.sp)
                 // Title takes whatever is left; the action buttons always stay visible.
                 Box(Modifier.weight(1f)) {
                     Text(
@@ -458,7 +465,7 @@ fun TerminalScreen(
                 ) {
                     val p = prompt
                     if (p != null && settings.approvalOverlay) {
-                        ApprovalBar(p, onChoose = { n -> session.send(n) }, onEsc = { session.send("\u001b") })
+                        ApprovalBar(p, onChoose = { n -> input.settle(); session.send(n) }, onEsc = { input.settle(); session.send("\u001b") })
                     }
                 }
 
@@ -467,6 +474,7 @@ fun TerminalScreen(
                 if (settings.autocomplete && suggestions.isNotEmpty()) {
                     NextToCursor(suggestAnchor) {
                         SuggestionBar(suggestions) { s ->
+                            input.settle()
                             session.send(s.insert)
                             completer.onUserInput(s.insert.toByteArray()) // look again (e.g. inside the chosen folder)
                         }
@@ -501,7 +509,7 @@ fun TerminalScreen(
             FileBrowser(
                 session = session,
                 fontSize = fontSize,
-                onInsertPath = { p -> session.paste(p) },
+                onInsertPath = { p -> input.settle(); session.paste(p) },
                 onClose = { filesOpen = false },
             )
         }
@@ -537,6 +545,7 @@ fun TerminalScreen(
     if (paletteOpen) {
         CommandPalette(snippets, onDismiss = { paletteOpen = false }) { s ->
             paletteOpen = false
+            input.settle()
             session.paste(s.text)
             if (s.submit) main.postDelayed({ session.send("\r") }, 60)
         }
