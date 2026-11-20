@@ -132,6 +132,7 @@ fun KeysScreen(app: App, onBack: () -> Unit) {
     if (showGenerate) {
         var name by remember { mutableStateOf("s25-ultra") }
         var hardware by remember { mutableStateOf(false) }
+        var userAuth by remember { mutableStateOf(false) }
         AlertDialog(
             onDismissRequest = { showGenerate = false },
             title = { Text("SSH 키 만들기") },
@@ -152,11 +153,20 @@ fun KeysScreen(app: App, onBack: () -> Unit) {
                             Text("키가 보안 칩 밖으로 절대 안 나와요. 대신 백업이 안 되고 폰을 바꾸면 새로 만들어야 해요.", style = MaterialTheme.typography.bodySmall)
                         }
                     }
+                    if (hardware) {
+                        Row(Modifier.fillMaxWidth().clickable { userAuth = !userAuth }, verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                            androidx.compose.material3.Checkbox(checked = userAuth, onCheckedChange = { userAuth = it })
+                            Column {
+                                Text("쓸 때마다 지문 확인")
+                                Text("보안 칩이 지문/화면 잠금 확인 없이는 서명하지 않아요. 자동 재연결 때도 매번 물어봐요.", style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
-                    runCatching { if (hardware) app.keys.generateHardware(name.trim()) else app.keys.generateEd25519(name.trim()) }
+                    runCatching { if (hardware) app.keys.generateHardware(name.trim(), userAuth) else app.keys.generateEd25519(name.trim()) }
                         .onSuccess { toast("생성했습니다. 공개키를 서버에 등록하세요.") }
                         .onFailure { toast("생성 실패: ${it.message}") }
                     showGenerate = false

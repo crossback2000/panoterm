@@ -30,8 +30,16 @@ data class HostKeyPrompt(
     val result: CompletableFuture<Boolean> = CompletableFuture(),
 )
 
+/** A user-auth-bound hardware key waits for this check before it signs [signature]. */
+class KeyAuthPrompt(
+    val keyName: String,
+    val signature: java.security.Signature,
+    val result: CompletableFuture<Boolean> = CompletableFuture(),
+)
+
 object Prompts {
     val hostKey = MutableStateFlow<HostKeyPrompt?>(null)
+    val keyAuth = MutableStateFlow<KeyAuthPrompt?>(null)
 }
 
 /** Fixed-size ring buffer: output that arrives before the session's terminal exists. */
@@ -495,6 +503,11 @@ class TermSession(
             _agent.value = AgentState.OFFLINE
             _windows.value = emptyList()
             return
+        }
+        // Forwards close themselves after a while unused (core: forwardIdle).
+        go?.let { g ->
+            val open = _forwards.value.filter { g.forwardOpen(it.localPort.toLong()) }
+            if (open.size != _forwards.value.size) _forwards.value = open
         }
         val visible = app.isForeground && app.visibleSessionId == id
         if (visible) activity.seen()

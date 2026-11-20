@@ -31,11 +31,12 @@ function start() {
     cursorBlink: true,
     allowProposedApi: true,
     theme: { background: '#000000' },
-    // OSC 8 hyperlinks: hand them to the app (http/https only) instead of xterm's default
+    // OSC 8 hyperlinks: hand them to the app (http/https only; it shows the real address
+    // first, since the text on screen is chosen by the program) instead of xterm's default
     // confirm() + window.open(), which would navigate this WebView away from the terminal.
     linkHandler: {
       allowNonHttpProtocols: false,
-      activate: function (e, uri) { Bridge.openUrl(uri); }
+      activate: function (e, uri) { Bridge.openLink(uri); }
     }
   });
   window.term = term;

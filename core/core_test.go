@@ -422,6 +422,34 @@ func TestSessionEndToEnd(t *testing.T) {
 	if _, err := net.DialTimeout("tcp", "127.0.0.1:"+fmtInt(local), time.Second); err == nil {
 		t.Fatal("forward still listening after StopForward")
 	}
+	if s.ForwardOpen(local) {
+		t.Fatal("ForwardOpen after StopForward")
+	}
+
+	// Idle forwards close themselves, but never while a connection is open.
+	oldIdle := forwardIdle
+	forwardIdle = 300 * time.Millisecond
+	idle, err := s.ForwardLocal("127.0.0.1", echoPort)
+	forwardIdle = oldIdle
+	if err != nil {
+		t.Fatal(err)
+	}
+	hold, err := net.Dial("tcp", "127.0.0.1:"+fmtInt(idle))
+	if err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(700 * time.Millisecond)
+	if !s.ForwardOpen(idle) {
+		t.Fatal("forward closed while a connection was open")
+	}
+	hold.Close()
+	deadline := time.Now().Add(3 * time.Second)
+	for s.ForwardOpen(idle) && time.Now().Before(deadline) {
+		time.Sleep(20 * time.Millisecond)
+	}
+	if s.ForwardOpen(idle) {
+		t.Fatal("idle forward was not closed")
+	}
 
 	// Side-channel exec (autocomplete): output comes back, non-zero exit is not an error,
 	// and nothing leaks into the interactive terminal.
