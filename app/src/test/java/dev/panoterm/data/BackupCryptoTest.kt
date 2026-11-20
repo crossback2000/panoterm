@@ -41,5 +41,10 @@ class BackupCryptoTest {
         assertTrue(UpdateChecker.isNewer("2.0", "1.9.9"))
         assertFalse(UpdateChecker.isNewer("1.0.0", "1.0.0"))
         assertFalse(UpdateChecker.isNewer("1.0.9", "1.1.0"))
+        // Release candidates: the final version replaces them, never the other way round.
+        assertTrue(UpdateChecker.isNewer("1.3.10", "1.3.10-rc1"))
+        assertFalse(UpdateChecker.isNewer("1.3.10-rc1", "1.3.10"))
+        assertFalse(UpdateChecker.isNewer("1.3.9", "1.3.10-rc1"))
+        assertTrue(UpdateChecker.isNewer("1.3.11", "1.3.10-rc1"))
     }
 }

@@ -258,15 +258,18 @@ class UpdateChecker(private val ctx: Context) {
         const val REPO = "crossback2000/panoterm"
         const val RELEASES = "https://github.com/$REPO/releases"
 
-        /** Semver-ish comparison of "1.2.3" strings. */
+        /**
+         * Semver-ish comparison of "1.2.3" strings. A pre-release ("1.3.10-rc1", a test build)
+         * is older than the same version without a suffix, so it updates to the final release.
+         */
         fun isNewer(remote: String, local: String): Boolean {
-            fun parts(s: String) = s.split('.', '-').mapNotNull { it.toIntOrNull() }
+            fun parts(s: String) = s.substringBefore('-').split('.').mapNotNull { it.toIntOrNull() }
             val r = parts(remote); val l = parts(local)
             for (i in 0 until maxOf(r.size, l.size)) {
                 val a = r.getOrElse(i) { 0 }; val b = l.getOrElse(i) { 0 }
                 if (a != b) return a > b
             }
-            return false
+            return !remote.contains('-') && local.contains('-')
         }
     }
 }
