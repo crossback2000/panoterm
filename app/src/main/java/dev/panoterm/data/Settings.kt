@@ -26,8 +26,11 @@ class Settings(ctx: Context) {
         val appHangul: Boolean = false,
         val hangulToggle: HangulToggle = HangulToggle.SHIFT_SPACE,
         val notifyOnBell: Boolean = true,
-        /** Let the server set the phone clipboard (OSC 52, e.g. tmux set-clipboard). */
-        val remoteClipboard: Boolean = true,
+        /**
+         * Let the server set the phone clipboard (OSC 52, e.g. tmux set-clipboard). Off by default:
+         * any output (`cat` of a downloaded file, a log) could silently replace the clipboard.
+         */
+        val remoteClipboard: Boolean = false,
         val keepScreenOn: Boolean = true,
         val approvalOverlay: Boolean = true,
         val twoFingerEsc: Boolean = true,
@@ -61,7 +64,7 @@ class Settings(ctx: Context) {
         hangulToggle = runCatching { HangulToggle.valueOf(prefs.getString("hangulToggle", null) ?: "") }
             .getOrDefault(HangulToggle.SHIFT_SPACE),
         notifyOnBell = prefs.getBoolean("notifyOnBell", true),
-        remoteClipboard = prefs.getBoolean("remoteClipboard", true),
+        remoteClipboard = prefs.getBoolean("remoteClipboard", false),
         keepScreenOn = prefs.getBoolean("keepScreenOn", true),
         approvalOverlay = prefs.getBoolean("approvalOverlay", true),
         twoFingerEsc = prefs.getBoolean("twoFingerEsc", true),

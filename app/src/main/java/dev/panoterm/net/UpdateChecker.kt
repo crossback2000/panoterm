@@ -155,6 +155,9 @@ class UpdateChecker(private val ctx: Context) {
                 c.connectTimeout = 15000; c.readTimeout = 30000
                 c.setRequestProperty("User-Agent", "PanoTerm")
                 val total = c.contentLengthLong.takeIf { it > 0 } ?: u.apkSize
+                // Never write more than the release says (or 300 MB without a size): a broken or
+                // hostile response must not fill the phone's storage.
+                val limit = if (u.apkSize > 0) u.apkSize else 300L shl 20
                 c.inputStream.use { input ->
                     tmp.outputStream().use { out ->
                         val buf = ByteArray(64 * 1024)
@@ -165,6 +168,7 @@ class UpdateChecker(private val ctx: Context) {
                             if (n < 0) break
                             out.write(buf, 0, n)
                             done += n
+                            if (done > limit) throw java.io.IOException("파일이 예상보다 큽니다")
                             val pct = if (total > 0) (done * 100 / total).toInt() else 0
                             if (pct != lastPct) { lastPct = pct; _state.value = State.Downloading(u, pct) }
                         }

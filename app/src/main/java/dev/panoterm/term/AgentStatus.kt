@@ -75,11 +75,17 @@ data class TmuxWindow(
 
 object TmuxStatus {
     private const val RS = '\u001e'
+    private const val US = '\u001f'
+    /** Pane lines sent per window: enough for Claude Code's approval box and status line. */
+    const val TAIL_LINES = 40
 
     /**
-     * Server-side script listing the windows of tmux session [name] with each window's visible
-     * pane text. Output per window: a header "<RS>W\t<index>\t<active>\t<command>\t<name>",
-     * then the pane lines. Prints nothing when tmux or the session is missing.
+     * Server-side script listing the windows of tmux session [name]. Output per window: a header
+     * "<RS>W\t<index>\t<active>\t<command>\t<name>", a line "<US><cksum of the whole visible
+     * pane>", then only the last [TAIL_LINES] pane lines (prompt and status detection look at the
+     * bottom; the checksum still catches a change anywhere). This runs every 2–5 s over mobile
+     * data, so the full panes of every window would add up to many MB per hour.
+     * Prints nothing when tmux or the session is missing.
      * Same quoting rules as [TermSession.tmuxCommand] (no single quotes inside).
      */
     fun pollCommand(name: String): String {
@@ -92,8 +98,10 @@ object TmuxStatus {
             "[ -n \"\$T\" ] || exit 0",
             "\"\$T\" list-windows -t \"=$n\" -F \"#{window_index}\t#{window_active}\t#{pane_current_command}\t#{window_name}\" 2>/dev/null |",
             "while IFS=\"\t\" read -r i a c w; do",
+            "p=\$(\"\$T\" capture-pane -p -J -t \"=$n:\$i\" 2>/dev/null)",
             "printf \"\\036W\\t%s\\t%s\\t%s\\t%s\\n\" \"\$i\" \"\$a\" \"\$c\" \"\$w\"",
-            "\"\$T\" capture-pane -p -J -t \"=$n:\$i\" 2>/dev/null",
+            "printf \"\\037%s\\n\" \"\$(printf %s \"\$p\" | cksum)\"",
+            "printf \"%s\\n\" \"\$p\" | tail -n $TAIL_LINES",
             "done",
         )
         return "sh -c '${script.joinToString("\n")}'"
@@ -118,9 +126,12 @@ object TmuxStatus {
             val nl = b.indexOf('\n').let { if (it < 0) b.length else it }
             val head = b.substring(2, nl).split('\t', limit = 4)
             val index = head.getOrNull(0)?.trim()?.toIntOrNull() ?: continue
-            val lines = if (nl < b.length) b.substring(nl + 1).split('\n') else emptyList()
+            var lines = if (nl < b.length) b.substring(nl + 1).split('\n') else emptyList()
+            // Checksum of the whole pane from the server (older scripts: hash the text here).
+            val sum = lines.firstOrNull()?.takeIf { it.startsWith(US) }
+            if (sum != null) lines = lines.drop(1)
             val text = lines.dropLastWhile { it.isBlank() }
-            val hash = text.joinToString("\n").hashCode()
+            val hash = sum?.hashCode() ?: text.joinToString("\n").hashCode()
             val prev = previous[index]?.hash
             result += TmuxWindow(
                 index = index,

@@ -143,6 +143,10 @@ class TermSession(
             if (app.settings.current.remoteClipboard) main.post {
                 app.getSystemService(ClipboardManager::class.java)
                     .setPrimaryClip(ClipData.newPlainText("remote", text))
+                // Android 13+ shows its own "copied" confirmation; earlier versions show nothing.
+                if (android.os.Build.VERSION.SDK_INT < 33) {
+                    android.widget.Toast.makeText(app, "서버가 클립보드를 바꿨습니다", android.widget.Toast.LENGTH_SHORT).show()
+                }
             }
         },
         onNoTmux = { _noTmux.value = true },

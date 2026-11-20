@@ -47,7 +47,13 @@ class KeyRepository(private val dir: File) {
         store(name, Core.importKey(data, passphrase, name))
 
     /** Decrypted private key (software keys). Caller should zero it after use. */
-    fun privateKey(id: String): ByteArray = SecretBox.decrypt(File(dir, "$id.key").readBytes())
+    fun privateKey(id: String): ByteArray = SecretBox.decrypt(keyFile(id).readBytes())
+
+    /** <id>.key. Ids also come from backup files, so anything but a UUID is refused (no "../"). */
+    private fun keyFile(id: String): File {
+        require(ID.matches(id)) { "잘못된 키 id" }
+        return File(dir, "$id.key")
+    }
 
     // ---- hardware keys ----
 
@@ -109,8 +115,8 @@ class KeyRepository(private val dir: File) {
     /** Restores a software key with its original id (so hosts keep pointing to it). Skips existing ids. */
     @Synchronized
     fun restore(info: SshKeyInfo, pem: ByteArray): Boolean {
-        if (get(info.id) != null || info.hardware) return false
-        writeAtomic(File(dir, "${info.id}.key"), SecretBox.encrypt(pem))
+        if (get(info.id) != null || info.hardware || !ID.matches(info.id)) return false
+        writeAtomic(keyFile(info.id), SecretBox.encrypt(pem))
         save(_keys.value + info)
         return true
     }
@@ -118,7 +124,7 @@ class KeyRepository(private val dir: File) {
     @Synchronized
     fun delete(id: String) {
         val k = get(id)
-        File(dir, "$id.key").delete()
+        if (ID.matches(id)) File(dir, "$id.key").delete()
         if (k?.hardware == true) {
             runCatching { KeyStore.getInstance("AndroidKeyStore").apply { load(null) }.deleteEntry(alias(id)) }
         }
@@ -130,7 +136,7 @@ class KeyRepository(private val dir: File) {
         val id = UUID.randomUUID().toString()
         val pem = kp.getPrivatePEM()
         try {
-            writeAtomic(File(dir, "$id.key"), SecretBox.encrypt(pem))
+            writeAtomic(keyFile(id), SecretBox.encrypt(pem))
         } finally {
             pem.fill(0)
         }
@@ -149,5 +155,9 @@ class KeyRepository(private val dir: File) {
     private fun save(list: List<SshKeyInfo>) {
         writeAtomic(meta, JSONArray(list.map { it.toJson() }).toString().toByteArray())
         _keys.value = list
+    }
+
+    private companion object {
+        val ID = Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
     }
 }

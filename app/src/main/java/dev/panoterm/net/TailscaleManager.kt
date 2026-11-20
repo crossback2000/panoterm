@@ -50,7 +50,8 @@ class TailscaleManager(private val ctx: Context) {
         }
 
         override fun onLog(line: String) {
-            android.util.Log.i("PanoTS", line)
+            // Release builds keep these out of logcat: login lines carry the auth URL.
+            if (dev.panoterm.BuildConfig.DEBUG) android.util.Log.i("PanoTS", line)
             _lastLog.value = line
         }
     }

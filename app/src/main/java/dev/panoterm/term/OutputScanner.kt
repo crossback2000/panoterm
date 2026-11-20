@@ -29,7 +29,6 @@ class OutputScanner(
                 St.NORMAL -> when (c) {
                     0x1b -> st = St.ESC
                     0x07 -> onBell()
-                    0x9d -> { osc.reset(); st = St.OSC } // C1 OSC (rare)
                 }
                 St.ESC -> st = if (c == ']'.code) { osc.reset(); St.OSC } else St.NORMAL
                 St.OSC -> when (c) {

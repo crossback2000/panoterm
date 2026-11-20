@@ -60,6 +60,31 @@ function start() {
   //   auto   — WebGL on a hardware GPU, Canvas on software GL (SwiftShader etc. clip glyphs)
   // Measured (scroll step frame time, real GPU): DOM 24-30ms, Canvas 20-23ms, WebGL 17-22ms.
   let renderer = 'dom', rendererAddon = null;
+  // index.html loads only the addon the startup renderer needs (each is ~100 KB of JS per
+  // terminal). Another one (settings change, WebGL fallback) is loaded here on demand; a
+  // generation counter drops a late load when the renderer was changed again meanwhile.
+  let rendererGen = 0;
+  const addonTried = {};
+  function loadAddonScript(name, done) {
+    addonTried[name] = true;
+    const s = document.createElement('script');
+    s.src = 'addon-' + name + '.js';
+    s.onload = s.onerror = function () { done(); };
+    document.head.appendChild(s);
+  }
+  // Returns true when the addon is there; otherwise starts loading it (unless that already
+  // failed), calls retry() once it has loaded, and returns null (pending) or false (unavailable).
+  function needAddon(name, global, retry) {
+    if (window[global]) return true;
+    if (addonTried[name]) return false;
+    const gen = rendererGen;
+    loadAddonScript(name, function () {
+      if (gen !== rendererGen) return;
+      retry();
+      term.refresh(0, term.rows - 1);
+    });
+    return null;
+  }
   function softwareGL() {
     try {
       const c = document.createElement('canvas');
@@ -71,7 +96,8 @@ function start() {
     } catch (e) { return true; }
   }
   function useCanvas() {
-    if (!window.CanvasAddon) return false;
+    const have = needAddon('canvas', 'CanvasAddon', useCanvas);
+    if (have !== true) return have === null;
     try {
       const c = new CanvasAddon.CanvasAddon();
       term.loadAddon(c);
@@ -80,11 +106,12 @@ function start() {
     } catch (e) { return false; }
   }
   function useWebgl() {
-    if (!window.WebglAddon) return false;
+    const have = needAddon('webgl', 'WebglAddon', function () { useWebgl() || useCanvas(); });
+    if (have !== true) return have === null;
     try {
       const gl = new WebglAddon.WebglAddon();
       // GPU reset / context lost: drop to the canvas renderer instead of the slow DOM one.
-      gl.onContextLoss(function () { gl.dispose(); renderer = 'dom'; rendererAddon = null; useCanvas(); });
+      gl.onContextLoss(function () { gl.dispose(); renderer = 'dom'; rendererAddon = null; rendererGen++; useCanvas(); });
       term.loadAddon(gl);
       renderer = 'webgl'; rendererAddon = gl;
       return true;
@@ -99,6 +126,7 @@ function start() {
   window.rendererName = function () { return renderer; };
   // Settings change: swap the renderer in place (the terminal and its contents stay).
   window.setRenderer = function (want) {
+    rendererGen++;
     if (rendererAddon) { rendererAddon.dispose(); rendererAddon = null; renderer = 'dom'; }
     useRenderer(want);
     term.refresh(0, term.rows - 1);

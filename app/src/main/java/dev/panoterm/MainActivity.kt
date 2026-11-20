@@ -129,6 +129,12 @@ class MainActivity : FragmentActivity() {
                         .windowInsetsPadding(WindowInsets.safeDrawing.exclude(WindowInsets.ime))
                 ) {
                     val isLocked by locked.collectAsState()
+                    // With the app lock on, the recents screen must not show a snapshot of the
+                    // terminal (it would bypass the lock). Android 13+; screenshots stay allowed.
+                    val lockOn = App.instance.settings.values.collectAsState().value.biometricLock
+                    LaunchedEffect(lockOn) {
+                        if (android.os.Build.VERSION.SDK_INT >= 33) setRecentsScreenshotEnabled(!lockOn)
+                    }
                     if (isLocked) LockScreen { authenticate() } else AppRoot(this@MainActivity)
                 }
             }
