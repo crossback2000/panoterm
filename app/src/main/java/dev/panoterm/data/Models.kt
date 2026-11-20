@@ -66,11 +66,13 @@ data class SshKeyInfo(
     val hardware: Boolean = false,
     /** Base64 X.509 SubjectPublicKeyInfo (hardware keys only). */
     val spki: String = "",
+    /** Hardware key that only signs right after a fingerprint / screen-lock check (in the chip). */
+    val userAuth: Boolean = false,
 ) {
     fun toJson(): JSONObject = JSONObject()
         .put("id", id).put("name", name).put("type", type)
         .put("publicKey", publicKey).put("fingerprint", fingerprint).put("createdAt", createdAt)
-        .put("hardware", hardware).put("spki", spki)
+        .put("hardware", hardware).put("spki", spki).put("userAuth", userAuth)
 
     companion object {
         fun fromJson(o: JSONObject) = SshKeyInfo(
@@ -82,6 +84,7 @@ data class SshKeyInfo(
             createdAt = o.optLong("createdAt"),
             hardware = o.optBoolean("hardware", false),
             spki = o.optString("spki", ""),
+            userAuth = o.optBoolean("userAuth", false),
         )
     }
 }

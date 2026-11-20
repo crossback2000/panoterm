@@ -58,8 +58,11 @@ android {
             ndk { abiFilters += "x86_64" }
         }
         release {
-            // gomobile's JNI bridge looks classes up by name; keep R8 off.
-            isMinifyEnabled = false
+            // R8 shrinks the Compose/AndroidX dex (~20 MB unshrunk). gomobile's JNI bridge
+            // looks classes up by name: proguard-rules.pro keeps those.
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfigs.findByName("release")?.let { signingConfig = it }
         }
     }

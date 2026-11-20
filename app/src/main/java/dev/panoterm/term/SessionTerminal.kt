@@ -20,7 +20,7 @@ class SessionTerminal(private val app: App, private val session: TermSession) {
     interface Ui {
         fun onTap()
         fun onFontSize(size: Int)
-        fun onOpenUrl(url: String)
+        fun onOpenUrl(url: String, confirm: Boolean)
         fun onPrompt(prompt: ApprovalPrompt?)
         fun onTables(count: Int)
         fun onGesture(name: String)
@@ -67,7 +67,7 @@ class SessionTerminal(private val app: App, private val session: TermSession) {
         // Screen-level: only meaningful while the terminal is on screen.
         override fun onTap() { ui?.onTap() }
         override fun onFontSize(size: Int) { ui?.onFontSize(size) }
-        override fun onOpenUrl(url: String) { ui?.onOpenUrl(url) }
+        override fun onOpenUrl(url: String, confirm: Boolean) { ui?.onOpenUrl(url, confirm) }
         override fun onGesture(name: String) { ui?.onGesture(name) }
         override fun onSelectStart() { ui?.onSelectStart() }
         override fun onPasteMenu(x: Int, y: Int) { ui?.onPasteMenu(x, y) }

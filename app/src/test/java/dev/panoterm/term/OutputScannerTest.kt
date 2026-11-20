@@ -53,4 +53,12 @@ class OutputScannerTest {
         s.feed("tial\u0007".toByteArray())
         assertEquals(listOf("" to "partial"), notes)
     }
+
+    /** "읽" is EC 9D BD: the 0x9D continuation byte must not start an OSC that swallows the bell. */
+    @Test fun utf8ContinuationByteIsNotC1Osc() {
+        s.feed("파일 읽는 중\u0007".toByteArray())
+        assertEquals(1, bells.size)
+        s.feed("읽기 끝\u001b]9;done\u0007".toByteArray())
+        assertEquals(listOf("" to "done"), notes)
+    }
 }

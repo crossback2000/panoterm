@@ -34,7 +34,8 @@ class TerminalWebView(ctx: Context) : WebView(ctx) {
         fun onModes(appCursor: Boolean, bracketedPaste: Boolean)
         fun onTap()
         fun onFontSize(size: Int)
-        fun onOpenUrl(url: String)
+        /** [confirm]: the visible text may not be the address (OSC 8 link): ask before opening. */
+        fun onOpenUrl(url: String, confirm: Boolean)
         fun onPrompt(prompt: ApprovalPrompt?)
         fun onTables(count: Int)
         fun onGesture(name: String)
@@ -102,7 +103,7 @@ class TerminalWebView(ctx: Context) : WebView(ctx) {
             override fun shouldOverrideUrlLoading(view: WebView, request: android.webkit.WebResourceRequest): Boolean {
                 val url = request.url.toString()
                 if (url.startsWith(ASSET_ROOT)) return false
-                if (request.hasGesture() && isWebUrl(url)) main.post { cb.onOpenUrl(url) }
+                if (request.hasGesture() && isWebUrl(url)) main.post { cb.onOpenUrl(url, true) }
                 return true
             }
 
@@ -267,7 +268,11 @@ class TerminalWebView(ctx: Context) : WebView(ctx) {
         fun onFontSize(size: Int) = main.post { cb.onFontSize(size) }
 
         @JavascriptInterface
-        fun openUrl(url: String) { if (isWebUrl(url)) main.post { cb.onOpenUrl(url) } }
+        fun openUrl(url: String) { if (isWebUrl(url)) main.post { cb.onOpenUrl(url, false) } }
+
+        /** OSC 8 hyperlink: the program chose the text shown, so the address needs a look first. */
+        @JavascriptInterface
+        fun openLink(url: String) { if (isWebUrl(url)) main.post { cb.onOpenUrl(url, true) } }
 
         @JavascriptInterface
         fun onTables(count: Int) = main.post { cb.onTables(count) }

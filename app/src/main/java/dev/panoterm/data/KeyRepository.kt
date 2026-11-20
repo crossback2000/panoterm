@@ -7,6 +7,8 @@ import android.util.Base64
 import core.Core
 import core.HardwareSigner
 import core.KeyPair
+import dev.panoterm.term.KeyAuthPrompt
+import dev.panoterm.term.Prompts
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.json.JSONArray
@@ -17,6 +19,7 @@ import java.security.PrivateKey
 import java.security.Signature
 import java.security.spec.ECGenParameterSpec
 import java.util.UUID
+import java.util.concurrent.TimeUnit
 
 /**
  * SSH keys. Metadata in keys.json.
@@ -47,15 +50,26 @@ class KeyRepository(private val dir: File) {
         store(name, Core.importKey(data, passphrase, name))
 
     /** Decrypted private key (software keys). Caller should zero it after use. */
-    fun privateKey(id: String): ByteArray = SecretBox.decrypt(File(dir, "$id.key").readBytes())
+    fun privateKey(id: String): ByteArray = SecretBox.decrypt(keyFile(id).readBytes())
+
+    /** <id>.key. Ids also come from backup files, so anything but a UUID is refused (no "../"). */
+    private fun keyFile(id: String): File {
+        require(ID.matches(id)) { "잘못된 키 id" }
+        return File(dir, "$id.key")
+    }
 
     // ---- hardware keys ----
 
     private fun alias(id: String) = "panoterm_hw_$id"
 
-    /** Generates a non-exportable EC P-256 key in StrongBox (or the TEE if StrongBox is unavailable). */
+    /**
+     * Generates a non-exportable EC P-256 key in StrongBox (or the TEE if StrongBox is unavailable).
+     * [userAuth]: the chip refuses to sign unless the user has just passed a fingerprint /
+     * screen-lock check for that very signature, so a malicious app or a stolen unlocked phone
+     * cannot connect with it silently.
+     */
     @Synchronized
-    fun generateHardware(name: String): SshKeyInfo {
+    fun generateHardware(name: String, userAuth: Boolean = false): SshKeyInfo {
         val id = UUID.randomUUID().toString()
         fun gen(strongBox: Boolean) = KeyPairGenerator.getInstance(KeyProperties.KEY_ALGORITHM_EC, "AndroidKeyStore").apply {
             initialize(
@@ -63,6 +77,15 @@ class KeyRepository(private val dir: File) {
                     .setAlgorithmParameterSpec(ECGenParameterSpec("secp256r1"))
                     .setDigests(KeyProperties.DIGEST_SHA256)
                     .setIsStrongBoxBacked(strongBox)
+                    .apply {
+                        if (userAuth) {
+                            setUserAuthenticationRequired(true)
+                            // 0 = every signature needs its own check (BiometricPrompt CryptoObject).
+                            setUserAuthenticationParameters(0, KeyProperties.AUTH_BIOMETRIC_STRONG or KeyProperties.AUTH_DEVICE_CREDENTIAL)
+                            // Adding a fingerprint must not destroy the key (the server still trusts it).
+                            setInvalidatedByBiometricEnrollment(false)
+                        }
+                    }
                     .build()
             )
         }.generateKeyPair()
@@ -73,12 +96,13 @@ class KeyRepository(private val dir: File) {
         val info = SshKeyInfo(
             id = id,
             name = name.ifBlank { "hardware" },
-            type = pub.getKeyType() + if (strong) " · StrongBox" else " · TEE",
+            type = pub.getKeyType() + (if (strong) " · StrongBox" else " · TEE") + (if (userAuth) " · 생체인증" else ""),
             publicKey = pub.getPublicKey(),
             fingerprint = pub.getFingerprint(),
             createdAt = System.currentTimeMillis(),
             hardware = true,
             spki = Base64.encodeToString(spki, Base64.NO_WRAP),
+            userAuth = userAuth,
         )
         save(_keys.value + info)
         return info
@@ -86,17 +110,30 @@ class KeyRepository(private val dir: File) {
 
     fun spki(info: SshKeyInfo): ByteArray = Base64.decode(info.spki, Base64.NO_WRAP)
 
-    /** Signer handed to the Go core; signs inside the Keystore. */
+    /**
+     * Signer handed to the Go core; signs inside the Keystore. Runs on the SSH handshake
+     * thread, so for [SshKeyInfo.userAuth] keys it can block while the UI asks for a fingerprint.
+     */
     fun hardwareSigner(info: SshKeyInfo): HardwareSigner = object : HardwareSigner {
         override fun signSHA256(data: ByteArray): ByteArray {
             val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
             val key = ks.getKey(alias(info.id), null) as? PrivateKey
                 ?: throw IllegalStateException("하드웨어 키를 찾을 수 없습니다")
-            return Signature.getInstance("SHA256withECDSA").run {
-                initSign(key)
-                update(data)
-                sign()
+            val sig = Signature.getInstance("SHA256withECDSA").apply { initSign(key) }
+            if (info.userAuth) {
+                val p = KeyAuthPrompt(info.name, sig)
+                Prompts.keyAuth.value = p
+                val ok = try {
+                    p.result.get(120, TimeUnit.SECONDS)
+                } catch (e: Exception) {
+                    false
+                } finally {
+                    Prompts.keyAuth.compareAndSet(p, null)
+                }
+                if (!ok) throw IllegalStateException("키 사용 인증이 취소되었습니다")
             }
+            sig.update(data)
+            return sig.sign()
         }
     }
 
@@ -109,8 +146,8 @@ class KeyRepository(private val dir: File) {
     /** Restores a software key with its original id (so hosts keep pointing to it). Skips existing ids. */
     @Synchronized
     fun restore(info: SshKeyInfo, pem: ByteArray): Boolean {
-        if (get(info.id) != null || info.hardware) return false
-        writeAtomic(File(dir, "${info.id}.key"), SecretBox.encrypt(pem))
+        if (get(info.id) != null || info.hardware || !ID.matches(info.id)) return false
+        writeAtomic(keyFile(info.id), SecretBox.encrypt(pem))
         save(_keys.value + info)
         return true
     }
@@ -118,7 +155,7 @@ class KeyRepository(private val dir: File) {
     @Synchronized
     fun delete(id: String) {
         val k = get(id)
-        File(dir, "$id.key").delete()
+        if (ID.matches(id)) File(dir, "$id.key").delete()
         if (k?.hardware == true) {
             runCatching { KeyStore.getInstance("AndroidKeyStore").apply { load(null) }.deleteEntry(alias(id)) }
         }
@@ -130,7 +167,7 @@ class KeyRepository(private val dir: File) {
         val id = UUID.randomUUID().toString()
         val pem = kp.getPrivatePEM()
         try {
-            writeAtomic(File(dir, "$id.key"), SecretBox.encrypt(pem))
+            writeAtomic(keyFile(id), SecretBox.encrypt(pem))
         } finally {
             pem.fill(0)
         }
@@ -149,5 +186,9 @@ class KeyRepository(private val dir: File) {
     private fun save(list: List<SshKeyInfo>) {
         writeAtomic(meta, JSONArray(list.map { it.toJson() }).toString().toByteArray())
         _keys.value = list
+    }
+
+    private companion object {
+        val ID = Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
     }
 }

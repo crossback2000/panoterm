@@ -135,7 +135,7 @@ fun SettingsScreen(
             Toggle("터미널 벨 알림", "다른 화면에 있을 때 벨(입력 대기)을 알림으로", v.notifyOnBell) { b ->
                 app.settings.update { it.copy(notifyOnBell = b) }
             }
-            Toggle("서버에서 클립보드 복사", "서버(tmux 등)에서 복사한 내용을 폰 클립보드로 받기", v.remoteClipboard) { b ->
+            Toggle("서버에서 클립보드 복사", "서버(tmux 등)에서 복사한 내용을 폰 클립보드로 받기. 켜면 화면에 출력된 내용이 클립보드를 바꿀 수 있어요", v.remoteClipboard) { b ->
                 app.settings.update { it.copy(remoteClipboard = b) }
             }
             Toggle("터미널에서 화면 켜짐 유지", null, v.keepScreenOn) { b ->

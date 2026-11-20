@@ -221,7 +221,10 @@ fun PortsDialog(session: TermSession, onDismiss: () -> Unit) {
         title = { Text("포트 포워딩 미리보기") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("서버의 개발 서버를 폰 브라우저에서 엽니다 (SSH 터널).", style = MaterialTheme.typography.bodySmall)
+                Text(
+                    "서버의 개발 서버를 폰 브라우저에서 엽니다 (SSH 터널). 열려 있는 동안 폰의 다른 앱도 이 포트에 접속할 수 있어서, 30분 동안 쓰지 않으면 자동으로 닫힙니다.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     OutlinedTextField(host, { host = it }, label = { Text("서버 쪽 호스트") }, singleLine = true, modifier = Modifier.weight(1.4f))
                     OutlinedTextField(port, { port = it.filter(Char::isDigit) }, label = { Text("포트") }, singleLine = true, modifier = Modifier.weight(1f))

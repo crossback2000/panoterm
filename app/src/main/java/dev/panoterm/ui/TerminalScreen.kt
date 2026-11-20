@@ -102,6 +102,7 @@ fun TerminalScreen(
     var tableCount by remember { mutableIntStateOf(0) }
     var prompt by remember { mutableStateOf<ApprovalPrompt?>(null) }
     var portsOpen by remember { mutableStateOf(false) }
+    var confirmUrl by remember { mutableStateOf<String?>(null) }
     var sessionMenu by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
     var paletteOpen by remember { mutableStateOf(false) }
@@ -270,7 +271,7 @@ fun TerminalScreen(
                 fontSize = size
                 persist { it.copy(fontSize = size) }
             }
-            override fun onOpenUrl(url: String) { openUrl(url) }
+            override fun onOpenUrl(url: String, confirm: Boolean) { if (confirm) confirmUrl = url else openUrl(url) }
             override fun onPrompt(p: ApprovalPrompt?) { prompt = p }
             override fun onTables(count: Int) { tableCount = count }
             override fun onSelectStart() {
@@ -516,6 +517,22 @@ fun TerminalScreen(
     }
 
     if (portsOpen) PortsDialog(session) { portsOpen = false }
+    confirmUrl?.let { url ->
+        val uri = Uri.parse(url)
+        androidx.compose.material3.AlertDialog(
+            onDismissRequest = { confirmUrl = null },
+            title = { Text("링크 열기") },
+            text = {
+                Column {
+                    // The host is what decides where this goes; the link's on-screen text may say otherwise.
+                    Text(uri.host ?: url, color = Color.White, fontSize = 18.sp)
+                    Text(url, color = Color.Gray, fontSize = 12.sp, maxLines = 6, overflow = TextOverflow.Ellipsis)
+                }
+            },
+            confirmButton = { TextButton(onClick = { confirmUrl = null; openUrl(url) }) { Text("열기") } },
+            dismissButton = { TextButton(onClick = { confirmUrl = null }) { Text("취소") } },
+        )
+    }
     if (topBarEdit) TopBarEditorDialog(app) { topBarEdit = false }
     if (installTmuxAsk) {
         androidx.compose.material3.AlertDialog(

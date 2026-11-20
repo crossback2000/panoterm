@@ -12,6 +12,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.biometric.BiometricManager
+import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG
 import androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_WEAK
 import androidx.biometric.BiometricManager.Authenticators.DEVICE_CREDENTIAL
 import androidx.biometric.BiometricPrompt
@@ -44,6 +45,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import dev.panoterm.data.Host
+import dev.panoterm.term.KeyAuthPrompt
 import dev.panoterm.term.Prompts
 import dev.panoterm.term.TerminalInputView
 import dev.panoterm.ui.HostEditScreen
@@ -97,9 +99,29 @@ class MainActivity : FragmentActivity() {
         )
     }
 
+    /** Unlocks one signature of a user-auth-bound hardware key (see KeyRepository.hardwareSigner). */
+    fun authorizeKey(p: KeyAuthPrompt) {
+        BiometricPrompt(this, ContextCompat.getMainExecutor(this), object : BiometricPrompt.AuthenticationCallback() {
+            override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) { p.result.complete(true) }
+            override fun onAuthenticationError(errorCode: Int, errString: CharSequence) { p.result.complete(false) }
+        }).authenticate(
+            BiometricPrompt.PromptInfo.Builder()
+                .setTitle("SSH 키 사용")
+                .setSubtitle(p.keyName)
+                .setAllowedAuthenticators(BIOMETRIC_STRONG or DEVICE_CREDENTIAL)
+                .build(),
+            BiometricPrompt.CryptoObject(p.signature),
+        )
+    }
+
     /** Opens (or resumes) a session for [h], asking for biometrics first if configured. */
     fun connectHost(h: Host) {
         if (App.instance.sessions.sessions.value.any { it.host.id == h.id }) {
+            navRequest.value = Screen.Terminal(App.instance.sessions.open(h).id)
+            return
+        }
+        // Such a key asks for its own check while connecting; don't ask twice.
+        if (h.keyId?.let { App.instance.keys.get(it) }?.userAuth == true) {
             navRequest.value = Screen.Terminal(App.instance.sessions.open(h).id)
             return
         }
@@ -129,6 +151,12 @@ class MainActivity : FragmentActivity() {
                         .windowInsetsPadding(WindowInsets.safeDrawing.exclude(WindowInsets.ime))
                 ) {
                     val isLocked by locked.collectAsState()
+                    // With the app lock on, the recents screen must not show a snapshot of the
+                    // terminal (it would bypass the lock). Android 13+; screenshots stay allowed.
+                    val lockOn = App.instance.settings.values.collectAsState().value.biometricLock
+                    LaunchedEffect(lockOn) {
+                        if (android.os.Build.VERSION.SDK_INT >= 33) setRecentsScreenshotEnabled(!lockOn)
+                    }
                     if (isLocked) LockScreen { authenticate() } else AppRoot(this@MainActivity)
                 }
             }
@@ -246,6 +274,8 @@ private fun AppRoot(activity: MainActivity) {
     val app = App.instance
     var screen by remember { mutableStateOf<Screen>(Screen.Hosts) }
     val prompt by Prompts.hostKey.collectAsState()
+    val keyAuth by Prompts.keyAuth.collectAsState()
+    LaunchedEffect(keyAuth) { keyAuth?.let { activity.authorizeKey(it) } }
     val nav by activity.navRequest.collectAsState()
     val hosts by app.hosts.hosts.collectAsState()
 

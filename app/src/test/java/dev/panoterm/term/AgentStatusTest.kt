@@ -76,6 +76,23 @@ class AgentStatusTest {
         assertEquals(AgentState.WORKING, changed[0].state)
     }
 
+    @Test fun serverChecksumDecidesChange() {
+        val first = TmuxStatus.parse("\u001eW\t0\t1\tclaude\tapi\n\u001f111 20\n" + approval.joinToString("\n") + "\n", emptyMap())
+        assertEquals(AgentState.WAITING, first[0].state)
+        // Same tail but a different checksum: something changed above the lines we got.
+        val prev = first.associateBy { it.index }
+        val same = TmuxStatus.parse("\u001eW\t0\t1\tbash\tapi\n\u001f111 20\n\$ \n", prev)
+        val changed = TmuxStatus.parse("\u001eW\t0\t1\tbash\tapi\n\u001f222 21\n\$ \n", prev)
+        assertEquals(AgentState.IDLE, same[0].state)
+        assertEquals(AgentState.WORKING, changed[0].state)
+    }
+
+    @Test fun pollSendsOnlyTheTail() {
+        val cmd = TmuxStatus.pollCommand("main")
+        assertTrue(cmd.contains("| cksum"))
+        assertTrue(cmd.contains("tail -n ${TmuxStatus.TAIL_LINES}"))
+    }
+
     @Test fun emptyOutputMeansNoWindows() {
         assertTrue(TmuxStatus.parse("", emptyMap()).isEmpty())
     }

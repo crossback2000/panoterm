@@ -13,6 +13,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/pkg/sftp"
@@ -154,9 +155,14 @@ func (s *Session) fwd() *forwards {
 	return v.(*forwards)
 }
 
+// forwardIdle: a forward with no open connection for this long is closed. While it is
+// open, any app on the phone can reach the remote service through 127.0.0.1, so it
+// should not stay up forever once the preview is no longer used.
+var forwardIdle = 30 * time.Minute
+
 // ForwardLocal listens on 127.0.0.1:<random> on the phone and tunnels each
 // connection to remoteHost:remotePort as seen from the SSH server.
-// Returns the local port.
+// Returns the local port. Closed automatically after forwardIdle without use.
 func (s *Session) ForwardLocal(remoteHost string, remotePort int) (int, error) {
 	if remoteHost == "" {
 		remoteHost = "localhost"
@@ -172,13 +178,26 @@ func (s *Session) ForwardLocal(remoteHost string, remotePort int) (int, error) {
 	f.m[port] = ln
 	f.mu.Unlock()
 
+	idleAfter := forwardIdle
+	var active atomic.Int32
+	var last atomic.Int64 // unix nanos of the last connection activity
+	last.Store(time.Now().UnixNano())
+	stop := make(chan struct{})
+
 	go func() {
+		defer close(stop)
 		for {
 			c, err := ln.Accept()
 			if err != nil {
 				return
 			}
+			active.Add(1)
+			last.Store(time.Now().UnixNano())
 			go func() {
+				defer func() {
+					last.Store(time.Now().UnixNano())
+					active.Add(-1)
+				}()
 				rc, err := s.client.Dial("tcp", target)
 				if err != nil {
 					c.Close()
@@ -188,7 +207,35 @@ func (s *Session) ForwardLocal(remoteHost string, remotePort int) (int, error) {
 			}()
 		}
 	}()
+	go func() {
+		t := time.NewTicker(idleAfter / 30)
+		defer t.Stop()
+		for {
+			select {
+			case <-stop:
+				return
+			case <-t.C:
+			}
+			if active.Load() == 0 && time.Since(time.Unix(0, last.Load())) >= idleAfter {
+				s.StopForward(port)
+				return
+			}
+		}
+	}()
 	return port, nil
+}
+
+// ForwardOpen reports whether the forward on localPort is still listening (it may have
+// been closed for being idle).
+func (s *Session) ForwardOpen(localPort int) bool {
+	v, ok := fwdBySession.Load(s)
+	if !ok {
+		return false
+	}
+	f := v.(*forwards)
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.m[localPort] != nil
 }
 
 // StopForward closes a forward created by ForwardLocal.
