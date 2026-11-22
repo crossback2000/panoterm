@@ -92,6 +92,26 @@ val ALL_KEYS: List<BarKey> = listOf(
     BarKey.Raw("nl", "⇧⏎ 줄바꿈", "\u001b\r"),
 )
 
+/** What a key does, shown under its label in the key bar editor (short labels like ⇧Tab are cryptic). */
+val KEY_HELP: Map<String, String> = mapOf(
+    "esc" to "Esc · Claude Code 작업 중단",
+    "stab" to "Shift+Tab · Claude Code 모드 전환 (자동 수락 / 계획 모드)",
+    "esc2" to "Esc 두 번 · Claude Code 이전 메시지로 되돌리기",
+    "ctrlc" to "Ctrl+C · 실행 중인 명령 중단",
+    "tab" to "Tab · 자동 완성",
+    "ctrl" to "다음에 누르는 키 하나에 Ctrl을 붙임",
+    "alt" to "다음에 누르는 키 하나에 Alt를 붙임",
+    "pad" to "좌우로 끌면 커서 이동",
+    "palette" to "명령 모음 열기",
+    "bs" to "백스페이스 (한 글자 지우기)",
+    "home" to "줄 맨 앞으로",
+    "end" to "줄 맨 끝으로",
+    "ctrlr" to "Ctrl+R · 입력 기록 검색",
+    "ctrlo" to "Ctrl+O · Claude Code 상세 보기",
+    "ctrld" to "Ctrl+D · 입력 끝 / 셸 종료",
+    "nl" to "Shift+Enter · 보내지 않고 줄만 바꿈",
+)
+
 val DEFAULT_KEY_IDS = listOf(
     "tab", "esc", "pad", "left", "down", "up", "right", "palette", "slash", "bs",
 )

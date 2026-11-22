@@ -86,6 +86,22 @@ class InputCore(
     }
 
     /**
+     * A ⌫ key event the keyboard passed on instead of editing the field itself (Samsung Keyboard
+     * does this, e.g. for English words it is composing). Edits the buffer the way a text field's
+     * key listener would: one character goes, from the composition if the cursor is in it, and the
+     * composition stays with the keyboard, which learns its new extent from the selection update.
+     * Returns false when there is nothing before the cursor: the DEL goes to the terminal.
+     *
+     * The composition must not be flushed here (v1.3.14-15 did): without a keyboard restart the
+     * keyboard keeps composing a word the terminal already has, so ⌫ seemed not to work.
+     */
+    fun backspaceKey(): Boolean {
+        if (mirror.isEmpty || !mirror.backspace()) return false
+        afterImeEdit()
+        return true
+    }
+
+    /**
      * Before input that bypasses the keyboard's text field (key events, key bar, paste):
      * sends what is on screen, the composition included, and starts a fresh buffer.
      * Sticky Ctrl/Alt is left for the key that follows: this text was typed before them.

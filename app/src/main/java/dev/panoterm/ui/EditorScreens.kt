@@ -66,7 +66,7 @@ fun KeyBarEditorScreen(app: App, onBack: () -> Unit) {
             itemsIndexed(enabled, key = { _, id -> "on-$id" }) { i, id ->
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = true, onCheckedChange = { save(enabled - id) })
-                    Text(byId[id]?.label ?: id, Modifier.weight(1f))
+                    KeyName(byId[id]?.label ?: id, KEY_HELP[id], Modifier.weight(1f))
                     TextButton(enabled = i > 0, onClick = {
                         val l = enabled.toMutableList(); l.add(i - 1, l.removeAt(i)); save(l)
                     }) { Text("▲") }
@@ -79,10 +79,18 @@ fun KeyBarEditorScreen(app: App, onBack: () -> Unit) {
             itemsIndexed(disabled, key = { _, id -> "off-$id" }) { _, id ->
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = false, onCheckedChange = { save(enabled + id) })
-                    Text(byId[id]?.label ?: id)
+                    KeyName(byId[id]?.label ?: id, KEY_HELP[id], Modifier.weight(1f))
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun KeyName(label: String, help: String?, modifier: Modifier = Modifier) {
+    Column(modifier) {
+        Text(label)
+        if (help != null) Text(help, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

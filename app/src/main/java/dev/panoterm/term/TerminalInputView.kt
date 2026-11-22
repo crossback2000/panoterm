@@ -110,13 +110,7 @@ class TerminalInputView(ctx: Context) : View(ctx) {
         val plain = !ctrl && !alt && !e.isMetaPressed
 
         // ⌫ the keyboard didn't handle itself: delete from the buffer it sees, so it stays in step.
-        if (e.keyCode == KeyEvent.KEYCODE_DEL && plain && !hangul.isComposing && !mirror.isEmpty) {
-            val wasComposing = mirror.hasComposing
-            if (mirror.backspace()) {
-                if (wasComposing) settle() else afterImeEdit()
-                return true
-            }
-        }
+        if (e.keyCode == KeyEvent.KEYCODE_DEL && plain && !hangul.isComposing && core.backspaceKey()) return true
         if (!KeyEvent.isModifierKey(e.keyCode)) settle()
 
         val appHangul = settings().appHangul
