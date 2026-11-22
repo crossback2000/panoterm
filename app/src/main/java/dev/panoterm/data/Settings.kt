@@ -38,7 +38,7 @@ class Settings(ctx: Context) {
         val autocomplete: Boolean = true,
         /** Status tabs under the top bar: which session / tmux window is working or waiting. */
         val agentTabs: Boolean = true,
-        /** Terminal renderer: auto (WebGL on hardware GPU, else Canvas) | webgl | canvas | dom. */
+        /** Terminal renderer: auto (WebGL on hardware GPU, else DOM) | webgl | dom. */
         val renderer: String = "auto",
         val updateCheck: Boolean = true,
         /** Download and install new releases automatically (installs only when no session is open). */
@@ -70,7 +70,8 @@ class Settings(ctx: Context) {
         twoFingerEsc = prefs.getBoolean("twoFingerEsc", true),
         autocomplete = prefs.getBoolean("autocomplete", true),
         agentTabs = prefs.getBoolean("agentTabs", true),
-        renderer = prefs.getString("renderer", "auto")!!,
+        // "canvas" was removed with xterm.js 6: such a saved choice becomes auto.
+        renderer = prefs.getString("renderer", "auto")!!.let { if (it == "canvas") "auto" else it },
         updateCheck = prefs.getBoolean("updateCheck", true),
         autoUpdate = prefs.getBoolean("autoUpdate", true),
         updateWifiOnly = prefs.getBoolean("updateWifiOnly", true),

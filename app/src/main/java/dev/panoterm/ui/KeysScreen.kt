@@ -5,6 +5,7 @@ import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.text.input.rememberTextFieldState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -22,6 +23,7 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedSecureTextField
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -32,17 +34,18 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import dev.panoterm.App
 import dev.panoterm.data.SshKeyInfo
+import kotlinx.coroutines.launch
 
 private class PendingImport(val name: String, val data: ByteArray)
 
@@ -51,7 +54,8 @@ private class PendingImport(val name: String, val data: ByteArray)
 fun KeysScreen(app: App, onBack: () -> Unit) {
     val keys by app.keys.keys.collectAsState()
     val ctx = LocalContext.current
-    val clipboard = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
 
     var showGenerate by remember { mutableStateOf(false) }
     var showPaste by remember { mutableStateOf(false) }
@@ -114,7 +118,9 @@ fun KeysScreen(app: App, onBack: () -> Unit) {
                         Text(k.publicKey, fontSize = 11.sp, fontFamily = FontFamily.Monospace, maxLines = 3)
                         Row {
                             TextButton(onClick = {
-                                clipboard.setText(AnnotatedString(k.publicKey))
+                                scope.launch {
+                                    clipboard.setClipEntry(ClipEntry(android.content.ClipData.newPlainText("공개키", k.publicKey)))
+                                }
                                 toast("공개키를 복사했습니다")
                             }) { Text("공개키 복사") }
                             TextButton(onClick = {
@@ -179,7 +185,8 @@ fun KeysScreen(app: App, onBack: () -> Unit) {
     if (showPaste) {
         var name by remember { mutableStateOf("imported") }
         var text by remember { mutableStateOf("") }
-        var pass by remember { mutableStateOf("") }
+        // Secure fields: no copy/cut, password keyboard, nothing learned by the IME.
+        val pass = rememberTextFieldState()
         AlertDialog(
             onDismissRequest = { showPaste = false },
             title = { Text("개인키 붙여넣기") },
@@ -191,16 +198,13 @@ fun KeysScreen(app: App, onBack: () -> Unit) {
                         modifier = Modifier.heightIn(min = 120.dp),
                         textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
                     )
-                    OutlinedTextField(
-                        pass, { pass = it }, label = { Text("암호 (있으면)") }, singleLine = true,
-                        visualTransformation = PasswordVisualTransformation(),
-                    )
+                    OutlinedSecureTextField(pass, label = { Text("암호 (있으면)") })
                 }
             },
             confirmButton = {
                 TextButton(onClick = {
                     showPaste = false
-                    tryImport(PendingImport(name.trim(), text.trim().toByteArray()), pass)
+                    tryImport(PendingImport(name.trim(), text.trim().toByteArray()), pass.text.toString())
                 }) { Text("가져오기") }
             },
             dismissButton = { TextButton(onClick = { showPaste = false }) { Text("취소") } },
@@ -208,17 +212,14 @@ fun KeysScreen(app: App, onBack: () -> Unit) {
     }
 
     needPassphrase?.let { p ->
-        var pass by remember(p) { mutableStateOf("") }
+        val pass = remember(p) { androidx.compose.foundation.text.input.TextFieldState() }
         AlertDialog(
             onDismissRequest = { needPassphrase = null },
             title = { Text("키 암호 입력") },
             text = {
-                OutlinedTextField(
-                    pass, { pass = it }, label = { Text("암호") }, singleLine = true,
-                    visualTransformation = PasswordVisualTransformation(),
-                )
+                OutlinedSecureTextField(pass, label = { Text("암호") })
             },
-            confirmButton = { TextButton(onClick = { tryImport(p, pass) }) { Text("확인") } },
+            confirmButton = { TextButton(onClick = { tryImport(p, pass.text.toString()) }) { Text("확인") } },
             dismissButton = { TextButton(onClick = { needPassphrase = null }) { Text("취소") } },
         )
     }

@@ -24,10 +24,10 @@
   <script src="addon-web-links.js"></script>
   <script>
     // Only the renderer addon the chosen renderer starts with (each is ~100 KB of JS to parse);
-    // term.js loads another on demand (settings change, fallback from WebGL to Canvas).
+    // term.js loads it on demand when the renderer is switched to WebGL in settings.
     (function () {
       var r = new URLSearchParams(location.hash.slice(1)).get('r') || 'auto';
-      var name = r === 'canvas' ? 'canvas' : (r === 'webgl' || r === 'auto') ? 'webgl' : '';
+      var name = (r === 'webgl' || r === 'auto' || r === 'canvas') ? 'webgl' : '';
       if (name) document.write('<script src="addon-' + name + '.js"><\/script>');
     })();
   </script>

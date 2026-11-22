@@ -15,7 +15,7 @@ function Get-File($url, $out) {
     Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $out
 }
 
-$XTERM = '5.5.0'; $FIT = '0.10.0'; $UNI = '0.8.0'; $LINKS = '0.11.0'; $WEBGL = '0.18.0'; $CANVAS = '0.7.0'
+$XTERM = '6.0.0'; $FIT = '0.11.0'; $UNI = '0.9.0'; $LINKS = '0.12.0'; $WEBGL = '0.19.0'
 
 Write-Host 'xterm.js'
 Get-File "https://cdn.jsdelivr.net/npm/@xterm/xterm@$XTERM/lib/xterm.js"                 (Join-Path $term 'xterm.js')
@@ -24,7 +24,6 @@ Get-File "https://cdn.jsdelivr.net/npm/@xterm/addon-fit@$FIT/lib/addon-fit.js"  
 Get-File "https://cdn.jsdelivr.net/npm/@xterm/addon-unicode11@$UNI/lib/addon-unicode11.js" (Join-Path $term 'addon-unicode11.js')
 Get-File "https://cdn.jsdelivr.net/npm/@xterm/addon-web-links@$LINKS/lib/addon-web-links.js" (Join-Path $term 'addon-web-links.js')
 Get-File "https://cdn.jsdelivr.net/npm/@xterm/addon-webgl@$WEBGL/lib/addon-webgl.js" (Join-Path $term 'addon-webgl.js')
-Get-File "https://cdn.jsdelivr.net/npm/@xterm/addon-canvas@$CANVAS/lib/addon-canvas.js" (Join-Path $term 'addon-canvas.js')
 
 if (-not (Test-Path (Join-Path $fonts 'D2Coding-Regular.ttf'))) {
     Write-Host 'D2Coding'
@@ -44,7 +43,6 @@ $licenses = [ordered]@{
     'xterm-addon-unicode11.LICENSE.txt' = "https://cdn.jsdelivr.net/npm/@xterm/addon-unicode11@$UNI/LICENSE"
     'xterm-addon-web-links.LICENSE.txt' = "https://cdn.jsdelivr.net/npm/@xterm/addon-web-links@$LINKS/LICENSE"
     'xterm-addon-webgl.LICENSE.txt' = "https://cdn.jsdelivr.net/npm/@xterm/addon-webgl@$WEBGL/LICENSE"
-    'xterm-addon-canvas.LICENSE.txt' = "https://cdn.jsdelivr.net/npm/@xterm/addon-canvas@$CANVAS/LICENSE"
     'pkg-sftp.LICENSE.txt'          = 'https://raw.githubusercontent.com/pkg/sftp/master/LICENSE'
     'D2Coding.OFL.txt'              = 'https://raw.githubusercontent.com/naver/d2codingfont/master/OFL.txt'
     'tailscale.LICENSE.txt'         = 'https://raw.githubusercontent.com/tailscale/tailscale/main/LICENSE'

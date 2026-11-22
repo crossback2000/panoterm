@@ -101,7 +101,7 @@ class CompletionTest {
 
     /** Dumps a listing command for an sh smoke test (see build docs). */
     @Test fun dumpListingCommand() {
-        val dir = java.io.File(System.getProperty("java.io.tmpdir"))
+        val dir = java.io.File(System.getProperty("java.io.tmpdir")!!)
         java.io.File(dir, "panoterm-listing-cmd.txt").writeText(Completion.listingCommand(null, "~/proj", ""))
         java.io.File(dir, "panoterm-listing-sub.txt").writeText(Completion.listingCommand(null, "", "~/proj/se"))
     }

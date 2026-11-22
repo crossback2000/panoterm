@@ -12,8 +12,24 @@ class BackupCryptoTest {
     @Test fun roundTrip() {
         val data = "{\"hosts\":[\"한글 호스트\"]}".toByteArray()
         val blob = Backup.encrypt(data, "correct horse".toCharArray())
-        assertTrue(blob.copyOfRange(0, 8).decodeToString() == "PANOBAK1")
+        assertTrue(blob.copyOfRange(0, 8).decodeToString() == "PANOBAK2")
         assertArrayEquals(data, Backup.decrypt(blob, "correct horse".toCharArray()))
+    }
+
+    /** Backups written before v1.3.12 (PANOBAK1, 310k iterations) must still import. */
+    @Test fun legacyV1Decrypts() {
+        val data = "legacy".toByteArray()
+        val pw = "old-password".toCharArray()
+        val salt = ByteArray(16) { it.toByte() }
+        val iv = ByteArray(12) { (it + 100).toByte() }
+        val magic = "PANOBAK1".toByteArray()
+        val key = javax.crypto.SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+            .generateSecret(javax.crypto.spec.PBEKeySpec(pw, salt, 310_000, 256)).encoded
+        val c = javax.crypto.Cipher.getInstance("AES/GCM/NoPadding")
+        c.init(javax.crypto.Cipher.ENCRYPT_MODE, javax.crypto.spec.SecretKeySpec(key, "AES"), javax.crypto.spec.GCMParameterSpec(128, iv))
+        c.updateAAD(magic)
+        val blob = magic + salt + iv + c.doFinal(data)
+        assertArrayEquals(data, Backup.decrypt(blob, pw))
     }
 
     @Test fun wrongPasswordFails() {

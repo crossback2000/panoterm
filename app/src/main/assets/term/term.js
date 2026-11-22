@@ -55,11 +55,11 @@ function start() {
   term.open(el);
 
   // Renderer (settings → 화면 그리기 방식):
-  //   canvas — 2D canvas with a glyph cache: far faster than DOM, works on all GPUs (default)
   //   webgl  — fastest on a real GPU, but some drivers clip glyphs in the texture atlas
-  //   dom    — slowest, most compatible
-  //   auto   — WebGL on a hardware GPU, Canvas on software GL (SwiftShader etc. clip glyphs)
-  // Measured (scroll step frame time, real GPU): DOM 24-30ms, Canvas 20-23ms, WebGL 17-22ms.
+  //   dom    — xterm's built-in renderer: slower, works everywhere
+  //   auto   — WebGL on a hardware GPU, DOM on software GL (SwiftShader etc. clip glyphs)
+  // xterm.js 6 removed the canvas renderer; a saved "canvas" setting is treated as auto.
+  // Measured on xterm 5 (scroll step frame time, real GPU): DOM 24-30ms, WebGL 17-22ms.
   let renderer = 'dom', rendererAddon = null;
   // index.html loads only the addon the startup renderer needs (each is ~100 KB of JS per
   // terminal). Another one (settings change, WebGL fallback) is loaded here on demand; a
@@ -96,32 +96,22 @@ function start() {
       return /swiftshader|llvmpipe|software|softpipe/i.test(String(name));
     } catch (e) { return true; }
   }
-  function useCanvas() {
-    const have = needAddon('canvas', 'CanvasAddon', useCanvas);
-    if (have !== true) return have === null;
-    try {
-      const c = new CanvasAddon.CanvasAddon();
-      term.loadAddon(c);
-      renderer = 'canvas'; rendererAddon = c;
-      return true;
-    } catch (e) { return false; }
-  }
   function useWebgl() {
-    const have = needAddon('webgl', 'WebglAddon', function () { useWebgl() || useCanvas(); });
+    const have = needAddon('webgl', 'WebglAddon', useWebgl);
     if (have !== true) return have === null;
     try {
       const gl = new WebglAddon.WebglAddon();
-      // GPU reset / context lost: drop to the canvas renderer instead of the slow DOM one.
-      gl.onContextLoss(function () { gl.dispose(); renderer = 'dom'; rendererAddon = null; rendererGen++; useCanvas(); });
+      // GPU reset / context lost: continue with the DOM renderer.
+      gl.onContextLoss(function () { gl.dispose(); renderer = 'dom'; rendererAddon = null; rendererGen++; });
       term.loadAddon(gl);
       renderer = 'webgl'; rendererAddon = gl;
       return true;
     } catch (e) { return false; }
   }
+  // Anything but webgl/auto (dom, or no addon available) leaves xterm's DOM renderer.
   function useRenderer(want) {
-    if (want === 'webgl') { useWebgl() || useCanvas(); }
-    else if (want === 'canvas') { useCanvas(); }
-    else if (want === 'auto') { (!softwareGL() && useWebgl()) || useCanvas(); }
+    if (want === 'canvas') want = 'auto';
+    if (want === 'webgl' || (want === 'auto' && !softwareGL())) useWebgl();
   }
   useRenderer(params.get('r') || 'auto');
   window.rendererName = function () { return renderer; };

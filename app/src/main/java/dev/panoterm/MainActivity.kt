@@ -79,8 +79,8 @@ class MainActivity : FragmentActivity() {
     private var unlockedOnce = false
     private var lastStop = 0L
 
-    private val requestNotif = registerForActivityResult(
-        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    private val requestPermissions = registerForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions()
     ) { }
 
     val biometricAvailable: Boolean
@@ -136,9 +136,14 @@ class MainActivity : FragmentActivity() {
             statusBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.dark(android.graphics.Color.TRANSPARENT),
         )
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            requestNotif.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
+        // Android 17+ blocks LAN traffic (SSH to 192.168.x.x, Tailscale's direct path to a peer
+        // on the same Wi-Fi) until ACCESS_LOCAL_NETWORK is granted. Without it Tailscale still
+        // works over the internet/DERP, so a denial only costs LAN hosts and latency.
+        val wanted = buildList {
+            add(Manifest.permission.POST_NOTIFICATIONS)
+            if (android.os.Build.VERSION.SDK_INT >= 37) add(Manifest.permission.ACCESS_LOCAL_NETWORK)
+        }.filter { ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }
+        if (wanted.isNotEmpty()) requestPermissions.launch(wanted.toTypedArray())
         handleIntent(intent)
         setContent {
             MaterialTheme(colorScheme = darkColorScheme()) {

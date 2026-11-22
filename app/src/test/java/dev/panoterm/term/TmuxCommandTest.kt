@@ -34,7 +34,7 @@ class TmuxCommandTest {
 
     /** Writes the generated scripts to files so they can be exercised with a real sh. */
     @Test fun dumpScript() {
-        val dir = java.io.File(System.getProperty("java.io.tmpdir"))
+        val dir = java.io.File(System.getProperty("java.io.tmpdir")!!)
         java.io.File(dir, "panoterm-tmux-cmd.txt").writeText(cmd)
         java.io.File(dir, "panoterm-tmux-install.txt").writeText(TermSession.installTmuxCommand("main"))
     }
