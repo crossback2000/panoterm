@@ -35,23 +35,24 @@ class TerminalInputView(ctx: Context) : View(ctx) {
     var onHangulChanged: (Boolean) -> Unit = {}
     var settings: () -> Settings.Values = { Settings.Values() }
 
-    var stickyCtrl = false
-        private set
-    var stickyAlt = false
-        private set
+    val stickyCtrl get() = core.stickyCtrl
+    val stickyAlt get() = core.stickyAlt
     /** In-app Hangul composition for hardware keys (only with Settings.appHangul). */
     var hangulMode = false
         private set
 
     private val hangul = Hangul()
-    private var capsHeld = false
 
-    private val mirror = ImeMirror()
     private val imm get() = context.getSystemService(InputMethodManager::class.java)
+    private val core = InputCore(
+        onBytes = { onBytes(it) },
+        onComposing = { onComposing(it) },
+        onSelection = { s -> imm.updateSelection(this, s[0], s[1], s[2], s[3]) },
+        onStickyChanged = { c, a -> onStickyChanged(c, a) },
+    )
+    private val mirror get() = core.mirror
     /** Bumped for every new InputConnection: calls on an older one are ignored. */
     private var icGeneration = 0
-    /** Selection/composition last reported to the keyboard. */
-    private var reported = IntArray(4)
 
     init {
         isFocusable = true
@@ -63,8 +64,8 @@ class TerminalInputView(ctx: Context) : View(ctx) {
         imm.showSoftInput(this, 0)
     }
 
-    fun toggleCtrl() { stickyCtrl = !stickyCtrl; onStickyChanged(stickyCtrl, stickyAlt) }
-    fun toggleAlt() { stickyAlt = !stickyAlt; onStickyChanged(stickyCtrl, stickyAlt) }
+    fun toggleCtrl() = core.toggleCtrl()
+    fun toggleAlt() = core.toggleAlt()
 
     fun toggleHangul() {
         commitHangul()
@@ -72,12 +73,7 @@ class TerminalInputView(ctx: Context) : View(ctx) {
         onHangulChanged(hangulMode)
     }
 
-    private fun clearSticky() {
-        if (stickyCtrl || stickyAlt) {
-            stickyCtrl = false; stickyAlt = false
-            onStickyChanged(false, false)
-        }
-    }
+    private fun clearSticky() = core.clearSticky()
 
     private fun commitHangul() {
         val s = hangul.flush()
@@ -87,72 +83,14 @@ class TerminalInputView(ctx: Context) : View(ctx) {
 
     // ---------------------------------------------------------------- keyboard text buffer
 
-    /** Sends a diff from the buffer. Returns false when the buffer no longer matches the terminal. */
-    private fun emit(out: ImeMirror.Out): Boolean {
-        if (out.deletes > 0) onBytes(ByteArray(out.deletes) { 0x7f })
-        if (out.text.isEmpty()) return true
-        val s = out.text.replace("\r\n", "\r").replace('\n', '\r')
-        if (stickyCtrl || stickyAlt) {
-            // Ctrl/Alt from the key bar applies to the first character typed.
-            val cp = s.codePointAt(0)
-            onBytes(KeyEncoder.encodeChar(cp, stickyCtrl, stickyAlt))
-            clearSticky()
-            val rest = s.substring(Character.charCount(cp))
-            if (rest.isNotEmpty()) onBytes(rest.toByteArray())
-            return false
-        }
-        onBytes(s.toByteArray())
-        return true
-    }
-
-    /** After the keyboard edited the buffer: send what changed and show the composition. */
-    private fun afterImeEdit() {
-        val inSync = emit(mirror.sync())
-        if (!inSync || (!mirror.hasComposing && mirror.length > ImeMirror.MAX_LENGTH)) {
-            resetMirror()
-            return
-        }
-        onComposing(mirror.composing)
-        reportSelection()
-    }
+    private fun emit(out: ImeMirror.Out) = core.emit(out)
+    private fun afterImeEdit() = core.afterImeEdit()
 
     /**
      * Before input that bypasses the keyboard's text field (key events, key bar, paste):
      * sends what is on screen, the composition included, and starts a fresh buffer.
      */
-    fun settle() {
-        if (mirror.isClean) return
-        send(mirror.flush())
-        afterReset()
-    }
-
-    /** Text from the buffer that sticky Ctrl/Alt must not apply to (it was typed before them). */
-    private fun send(out: ImeMirror.Out) {
-        if (out.deletes > 0) onBytes(ByteArray(out.deletes) { 0x7f })
-        if (out.text.isNotEmpty()) onBytes(out.text.replace("\r\n", "\r").replace('\n', '\r').toByteArray())
-    }
-
-    private fun resetMirror() {
-        mirror.reset()
-        afterReset()
-    }
-
-    /**
-     * Tells the keyboard its field is empty and nothing is composing, as a text field cleared by
-     * the app would. Never restartInput: Samsung Keyboard comes back from a restart in English.
-     */
-    private fun afterReset() {
-        onComposing("")
-        reportSelection()
-    }
-
-    /** Tells the keyboard where the cursor and composition are, as a text field would. */
-    private fun reportSelection() {
-        val s = intArrayOf(mirror.selStart, mirror.selEnd, mirror.compStart, mirror.compEnd)
-        if (s.contentEquals(reported)) return
-        reported = s
-        imm.updateSelection(this, s[0], s[1], s[2], s[3])
-    }
+    fun settle() = core.settle()
 
     // ---------------------------------------------------------------- hardware keys
 
@@ -166,9 +104,9 @@ class TerminalInputView(ctx: Context) : View(ctx) {
     /** Hardware key down (or a key event the phone keyboard passed on). Returns true if consumed. */
     fun handleHardwareKey(e: KeyEvent): Boolean {
         val capsAsCtrl = settings().capsAsCtrl
-        if (capsAsCtrl && e.keyCode == KeyEvent.KEYCODE_CAPS_LOCK) { capsHeld = true; return true }
-        val ctrl = e.isCtrlPressed || (capsAsCtrl && capsHeld) || stickyCtrl
-        val alt = e.isAltPressed || stickyAlt
+        if (e.keyCode == KeyEvent.KEYCODE_CAPS_LOCK && core.capsDown(capsAsCtrl)) return true
+        val ctrl = core.ctrl(e.isCtrlPressed, capsAsCtrl)
+        val alt = core.alt(e.isAltPressed)
         val plain = !ctrl && !alt && !e.isMetaPressed
 
         // ⌫ the keyboard didn't handle itself: delete from the buffer it sees, so it stays in step.
@@ -212,23 +150,19 @@ class TerminalInputView(ctx: Context) : View(ctx) {
 
     /** Hardware key up. Returns true if consumed. */
     fun handleHardwareKeyUp(e: KeyEvent): Boolean {
-        if (e.keyCode == KeyEvent.KEYCODE_CAPS_LOCK) {
-            val wasHeld = capsHeld
-            capsHeld = false
-            return wasHeld || settings().capsAsCtrl
-        }
+        if (e.keyCode == KeyEvent.KEYCODE_CAPS_LOCK) return core.capsUp(settings().capsAsCtrl)
         return false
     }
 
     // CapsLock's key-up never arrives if focus moves while it is held: it would stay Ctrl.
     override fun onFocusChanged(gainFocus: Boolean, direction: Int, previouslyFocusedRect: android.graphics.Rect?) {
         super.onFocusChanged(gainFocus, direction, previouslyFocusedRect)
-        if (!gainFocus) capsHeld = false
+        if (!gainFocus) core.focusLost()
     }
 
     override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
         super.onWindowFocusChanged(hasWindowFocus)
-        if (!hasWindowFocus) capsHeld = false
+        if (!hasWindowFocus) core.focusLost()
     }
 
     // ---------------------------------------------------------------- key bar
@@ -270,10 +204,9 @@ class TerminalInputView(ctx: Context) : View(ctx) {
             EditorInfo.IME_FLAG_NO_FULLSCREEN or
             EditorInfo.IME_ACTION_NONE
         // A new connection starts from an empty field. (No restartInput here: we are inside one.)
-        if (!mirror.isClean) { emit(mirror.flush()); onComposing("") }
+        core.newConnection()
         outAttrs.initialSelStart = 0
         outAttrs.initialSelEnd = 0
-        reported = intArrayOf(0, 0, -1, -1)
         return MirrorConnection(++icGeneration)
     }
 

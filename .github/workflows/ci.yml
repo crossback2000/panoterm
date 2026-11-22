@@ -32,6 +32,11 @@ jobs:
         working-directory: core
         run: go test -count=1 ./...
 
+      # Table lens / reader mode / approval prompt parsing (app/src/main/assets/term/tables.js).
+      # Uses the runner's preinstalled Node; no packages.
+      - name: JS tests
+        run: node --test app/src/test/js/*.test.js
+
       - name: Android SDK packages
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
