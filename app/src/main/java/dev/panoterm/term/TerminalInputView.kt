@@ -2,6 +2,7 @@ package dev.panoterm.term
 
 import android.content.Context
 import android.text.InputType
+import android.view.KeyCharacterMap
 import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.BaseInputConnection
@@ -175,6 +176,18 @@ class TerminalInputView(ctx: Context) : View(ctx) {
             val wasComposing = mirror.hasComposing
             if (mirror.backspace()) {
                 if (wasComposing) settle() else afterImeEdit()
+                return true
+            }
+        }
+        // A character key while the keyboard is composing goes into its buffer, after the syllable.
+        // settle() would restart the keyboard, and Samsung Keyboard comes back in English.
+        if (plain && mirror.hasComposing && !hangul.isComposing &&
+            !(e.keyCode == KeyEvent.KEYCODE_SPACE && e.isShiftPressed)
+        ) {
+            val cp = e.getUnicodeChar(if (capsAsCtrl) e.metaState and KeyEvent.META_CAPS_LOCK_ON.inv() else e.metaState)
+            if (cp > 0 && (cp and KeyCharacterMap.COMBINING_ACCENT) == 0 && !Character.isISOControl(cp)) {
+                mirror.typeKey(String(Character.toChars(cp)))
+                afterImeEdit()
                 return true
             }
         }

@@ -92,6 +92,46 @@ class ImeMirrorTest {
         assertTrue(m.isEmpty)
     }
 
+    /** A character key typed into the buffer while composing ([ImeMirror.typeKey]). */
+    private fun typeKey(s: String) = ime { typeKey(s) }
+
+    @Test fun characterKeyDuringCompositionKeepsTheKeyboard() {
+        // "없니? 어": '?' arrives as a key event while 니 is composing. No restart, no repeat.
+        ime { commitText("없") }
+        compose("ㄴ", "니")
+        typeKey("?")
+        assertEquals("없니?", term.toString())
+        assertEquals("없니?", m.text)
+        // The keyboard commits the syllable afterwards (either way), then types on.
+        ime { finishComposingText() }
+        ime { commitText(" ") }
+        compose("ㅇ", "어")
+        assertEquals("없니? ", term.toString())
+        ime { commitText("어") }
+        assertEquals("없니? 어", term.toString())
+    }
+
+    @Test fun keyboardCommittingTheSyllableAfterTheKeyIsNotRepeated() {
+        compose("ㄴ", "니")
+        typeKey("?")
+        ime { commitText("니") }
+        assertEquals("니?", term.toString())
+        assertEquals("니?", m.text)
+        assertEquals(2, m.selStart) // the cursor stays after '?', where the terminal's is
+        ime { commitText(" ") }
+        assertEquals("니? ", term.toString())
+    }
+
+    @Test fun keyboardChangingTheSyllableAfterTheKeyIsCorrected() {
+        compose("ㄴ", "니")
+        typeKey("!")
+        compose("닉")
+        ime { finishComposingText() }
+        assertEquals("닉!", term.toString())
+        ime { commitText("a") }
+        assertEquals("닉!a", term.toString())
+    }
+
     @Test fun deleteKeyWithEmptyBufferIsNotHandledHere() {
         assertFalse(m.backspace())
     }
