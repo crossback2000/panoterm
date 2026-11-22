@@ -8,6 +8,9 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <!-- Android 17+: LAN hosts (192.168.x.x SSH, Tailscale direct paths on the same Wi-Fi)
+         are blocked without this runtime permission; MainActivity asks for it once. -->
+    <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
     <!-- Self-update from GitHub Releases (the user enables "install unknown apps" once). -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <!-- Lets later self-updates install without a confirmation dialog (Android 12+). -->
@@ -40,8 +43,11 @@
         <receiver
             android:name=".net.UpdateReceiver"
             android:exported="false">
+            <!-- UPDATE_STATUS is sent explicitly by PackageInstaller; listing it keeps the
+                 receiver working under strict intent-filter matching (Android 16+ Safer Intents). -->
             <intent-filter>
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="dev.panoterm.UPDATE_STATUS" />
             </intent-filter>
         </receiver>
 
