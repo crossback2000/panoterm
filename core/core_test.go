@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -33,6 +34,9 @@ type testServer struct {
 	winch   chan [2]int
 	env     chan string
 	dir     string
+	// globalDelay holds replies to global requests (keepalives): 0 = reply at
+	// once, >0 = reply after that many ns, <0 = never reply.
+	globalDelay atomic.Int64
 }
 
 func startServer(t *testing.T, authorized ssh.PublicKey) *testServer {
@@ -81,7 +85,18 @@ func (ts *testServer) serve(c net.Conn, cfg *ssh.ServerConfig) {
 	if err != nil {
 		return
 	}
-	go ssh.DiscardRequests(reqs)
+	go func() {
+		for r := range reqs {
+			d := ts.globalDelay.Load()
+			if d < 0 {
+				continue // swallow: the client never gets a reply
+			}
+			time.Sleep(time.Duration(d))
+			if r.WantReply {
+				r.Reply(false, nil)
+			}
+		}
+	}()
 	for nc := range chans {
 		switch nc.ChannelType() {
 		case "session":
@@ -489,6 +504,59 @@ func TestWrongKeyRejected(t *testing.T) {
 	ts := startServer(t, pub(t, good))
 	if _, err := connect(t, ts, bad, &verifier{accept: true}, newCollector()); err == nil {
 		t.Fatal("unauthorized key was accepted")
+	}
+}
+
+func shortKeepAlive(t *testing.T) {
+	iv, mm := keepAliveInterval, keepAliveMaxMisses
+	keepAliveInterval, keepAliveMaxMisses = 100*time.Millisecond, 3
+	t.Cleanup(func() { keepAliveInterval, keepAliveMaxMisses = iv, mm })
+}
+
+// A single slow keepalive reply (longer than one interval, shorter than
+// interval*maxMisses) must not drop the session.
+func TestKeepAliveToleratesSlowReply(t *testing.T) {
+	shortKeepAlive(t)
+	kp, _ := GenerateEd25519("t")
+	ts := startServer(t, pub(t, kp))
+	ts.globalDelay.Store(int64(250 * time.Millisecond))
+	c := newCollector()
+	s, err := connect(t, ts, kp, &verifier{accept: true}, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	select {
+	case r := <-c.closed:
+		t.Fatalf("session dropped on slow keepalive: %s", r)
+	case <-time.After(1500 * time.Millisecond):
+	}
+}
+
+// No replies at all: the session closes after maxMisses intervals.
+func TestKeepAliveTimeout(t *testing.T) {
+	shortKeepAlive(t)
+	kp, _ := GenerateEd25519("t")
+	ts := startServer(t, pub(t, kp))
+	ts.globalDelay.Store(-1)
+	c := newCollector()
+	start := time.Now()
+	s, err := connect(t, ts, kp, &verifier{accept: true}, c)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer s.Close()
+	select {
+	case r := <-c.closed:
+		if r != "connection lost (keepalive timeout)" {
+			t.Fatalf("reason %q", r)
+		}
+		// probe sent at 1 interval, then 3 unanswered intervals: ~400ms.
+		if el := time.Since(start); el < 350*time.Millisecond {
+			t.Fatalf("closed too early: %v", el)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("session not closed despite unanswered keepalives")
 	}
 }
 
