@@ -17,7 +17,10 @@ val signingProps = Properties().apply {
 
 android {
     namespace = "dev.panoterm"
-    compileSdk = 37
+    // 37.2: Compose 1.13 needs at least the 37.1 minor SDK.
+    compileSdk {
+        version = release(37) { minorApiLevel = 2 }
+    }
 
     defaultConfig {
         applicationId = "dev.panoterm"
