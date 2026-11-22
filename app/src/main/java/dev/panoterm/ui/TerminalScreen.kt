@@ -1,5 +1,7 @@
 package dev.panoterm.ui
 
+import androidx.compose.ui.res.stringResource
+import dev.panoterm.R
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
@@ -80,6 +82,7 @@ fun TerminalScreen(
     onSwitch: (TermSession) -> Unit,
 ) {
     val ctx = LocalContext.current
+    val res = androidx.compose.ui.platform.LocalResources.current
     val view = LocalView.current
     val state by session.state.collectAsState()
     val message by session.message.collectAsState()
@@ -143,7 +146,7 @@ fun TerminalScreen(
         fixedCols = WIDTHS[(i + 1) % WIDTHS.size]
         webView.setFixedCols(fixedCols)
         persist { it.copy(fixedCols = fixedCols) }
-        Toast.makeText(ctx, if (fixedCols == 0) "화면 맞춤" else "넓게: ${fixedCols}열 (좌우로 밀어서 보기)", Toast.LENGTH_SHORT).show()
+        Toast.makeText(ctx, if (fixedCols == 0) res.getString(R.string.width_fit) else res.getString(R.string.width_wide, fixedCols), Toast.LENGTH_SHORT).show()
     }
 
     fun paste() {
@@ -156,7 +159,7 @@ fun TerminalScreen(
         webView.selectionText { t ->
             if (t.isNotBlank()) {
                 ctx.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("terminal", t.trimEnd()))
-                Toast.makeText(ctx, "복사했습니다", Toast.LENGTH_SHORT).show()
+                Toast.makeText(ctx, res.getString(R.string.copied), Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -192,16 +195,16 @@ fun TerminalScreen(
         val ext = mime.substringAfter('/').substringBefore(';').replace("jpeg", "jpg").ifBlank { "png" }
         val bytes = runCatching { ctx.contentResolver.openInputStream(uri)?.use { it.readBytes() } }.getOrNull()
         if (bytes == null) {
-            Toast.makeText(ctx, "이미지를 읽을 수 없습니다", Toast.LENGTH_SHORT).show()
+            Toast.makeText(ctx, res.getString(R.string.image_unreadable), Toast.LENGTH_SHORT).show()
             return@rememberLauncherForActivityResult
         }
-        Toast.makeText(ctx, "업로드 중… (${bytes.size / 1024} KB)", Toast.LENGTH_SHORT).show()
+        Toast.makeText(ctx, res.getString(R.string.uploading, bytes.size / 1024), Toast.LENGTH_SHORT).show()
         session.upload("image.$ext", bytes) { r ->
             r.onSuccess { path ->
                 input.settle()
                 session.send("$path ")
-                Toast.makeText(ctx, "업로드 완료: 경로를 입력했습니다", Toast.LENGTH_SHORT).show()
-            }.onFailure { Toast.makeText(ctx, "업로드 실패: ${it.message}", Toast.LENGTH_LONG).show() }
+                Toast.makeText(ctx, res.getString(R.string.upload_done), Toast.LENGTH_SHORT).show()
+            }.onFailure { Toast.makeText(ctx, res.getString(R.string.upload_failed, it.message ?: it.toString()), Toast.LENGTH_LONG).show() }
         }
     }
 
@@ -282,17 +285,17 @@ fun TerminalScreen(
                 hasSelection = active
                 if (!active || dragging || rect == null) { toolbar.hide(); return }
                 val items = mutableListOf<Pair<String, () -> Unit>>(
-                    "복사" to { copySelection(); terminal.view.value.clearSelectionText() },
+                    res.getString(R.string.copy) to { copySelection(); terminal.view.value.clearSelectionText() },
                 )
-                if (clipboardHasText()) items += "붙여넣기" to { terminal.view.value.clearSelectionText(); paste() }
-                items += "입력" to { typeSelection() }
-                items += "전체 선택" to { terminal.view.value.selectAllText() }
+                if (clipboardHasText()) items += res.getString(R.string.key_paste) to { terminal.view.value.clearSelectionText(); paste() }
+                items += res.getString(R.string.sel_type) to { typeSelection() }
+                items += res.getString(R.string.select_all) to { terminal.view.value.selectAllText() }
                 toolbar.show(terminal.view.value, rect, items)
             }
             override fun onPasteMenu(x: Int, y: Int) {
                 view.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
-                if (clipboardHasText()) toolbar.show(terminal.view.value, android.graphics.Rect(x, y - 8, x + 1, y + 8), listOf("붙여넣기" to { paste() }))
-                else Toast.makeText(ctx, "클립보드가 비어 있습니다", Toast.LENGTH_SHORT).show()
+                if (clipboardHasText()) toolbar.show(terminal.view.value, android.graphics.Rect(x, y - 8, x + 1, y + 8), listOf(res.getString(R.string.key_paste) to { paste() }))
+                else Toast.makeText(ctx, res.getString(R.string.clipboard_empty), Toast.LENGTH_SHORT).show()
             }
             override fun onGesture(name: String) {
                 // Two-finger swipe left = Esc (interrupt Claude).
@@ -304,7 +307,7 @@ fun TerminalScreen(
                 }
             }
             override fun onRendererGone() {
-                Toast.makeText(ctx, "터미널 화면 엔진이 다시 시작되어 이전 화면 내용을 잃었습니다", Toast.LENGTH_LONG).show()
+                Toast.makeText(ctx, res.getString(R.string.term_engine_restarted), Toast.LENGTH_LONG).show()
             }
         }
         activity.keyTarget = input
@@ -358,7 +361,7 @@ fun TerminalScreen(
                         }
                     )
                 )
-                if (hangulOn) Text(" 한", color = Color(0xFF64B5F6), fontSize = 13.sp)
+                if (hangulOn) Text(" " + stringResource(R.string.hangul_indicator), color = Color(0xFF64B5F6), fontSize = 13.sp)
                 // Title takes whatever is left; the action buttons always stay visible.
                 Box(Modifier.weight(1f)) {
                     Text(
@@ -393,12 +396,12 @@ fun TerminalScreen(
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                             ALL_TOP_ACTIONS.filter { a -> pinned.none { it.id == a.id } }.forEach { a ->
                                 val label = when (a.id) {
-                                    "tmux" -> if (showTmux) "tmux 키 줄 숨기기" else "tmux 키 줄 보이기"
+                                    "tmux" -> stringResource(if (showTmux) R.string.tmux_row_hide else R.string.tmux_row_show)
                                     else -> a.label
                                 }
                                 MenuItem("${a.icon}  $label") { runTopAction(a.id) }
                             }
-                            MenuItem("✎  상단 아이콘 편집") { topBarEdit = true }
+                            MenuItem("✎  " + stringResource(R.string.topbar_edit)) { topBarEdit = true }
                         }
                     }
                 }
@@ -413,11 +416,11 @@ fun TerminalScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        "서버에서 tmux를 못 찾아 일반 셸로 접속했어요. 연결이 끊기면 Claude 작업도 같이 끝나요.",
+                        stringResource(R.string.no_tmux_banner),
                         color = Color.White, fontSize = 12.sp, modifier = Modifier.weight(1f),
                     )
-                    TextButton(onClick = { installTmuxAsk = true }) { Text("tmux 설치") }
-                    TextButton(onClick = { noTmuxDismissed = true }) { Text("닫기") }
+                    TextButton(onClick = { installTmuxAsk = true }) { Text(stringResource(R.string.tmux_install_short)) }
+                    TextButton(onClick = { noTmuxDismissed = true }) { Text(stringResource(R.string.close)) }
                 }
             }
 
@@ -427,10 +430,10 @@ fun TerminalScreen(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        (message ?: "연결 끊김") + (reconnectIn?.let { " · ${it}초 후 자동 재연결" } ?: ""),
+                        (message ?: stringResource(R.string.disconnected)) + (reconnectIn?.let { stringResource(R.string.reconnect_in, it) } ?: ""),
                         color = Color.White, fontSize = 13.sp, modifier = Modifier.weight(1f), maxLines = 2,
                     )
-                    TextButton(onClick = { session.connect() }) { Text("지금 연결") }
+                    TextButton(onClick = { session.connect() }) { Text(stringResource(R.string.connect_now)) }
                 }
             }
 
@@ -521,7 +524,7 @@ fun TerminalScreen(
         val uri = Uri.parse(url)
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { confirmUrl = null },
-            title = { Text("링크 열기") },
+            title = { Text(stringResource(R.string.open_link)) },
             text = {
                 Column {
                     // The host is what decides where this goes; the link's on-screen text may say otherwise.
@@ -529,22 +532,18 @@ fun TerminalScreen(
                     Text(url, color = Color.Gray, fontSize = 12.sp, maxLines = 6, overflow = TextOverflow.Ellipsis)
                 }
             },
-            confirmButton = { TextButton(onClick = { confirmUrl = null; openUrl(url) }) { Text("열기") } },
-            dismissButton = { TextButton(onClick = { confirmUrl = null }) { Text("취소") } },
+            confirmButton = { TextButton(onClick = { confirmUrl = null; openUrl(url) }) { Text(stringResource(R.string.open)) } },
+            dismissButton = { TextButton(onClick = { confirmUrl = null }) { Text(stringResource(R.string.cancel)) } },
         )
     }
     if (topBarEdit) TopBarEditorDialog(app) { topBarEdit = false }
     if (installTmuxAsk) {
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { installTmuxAsk = false },
-            title = { Text("서버에 tmux 설치") },
+            title = { Text(stringResource(R.string.tmux_install_title)) },
             text = {
                 Text(
-                    "새 탭을 열어 서버 종류를 알아서 확인하고 tmux를 설치해요 " +
-                        "(apt, dnf, yum, pacman, zypper, apk, brew, pkg).\n\n" +
-                        "• 지금 탭은 그대로 둡니다. 실행 중인 Claude는 영향 없어요.\n" +
-                        "• sudo 비밀번호를 물으면 새 탭에서 직접 입력하세요.\n" +
-                        "• 설치가 끝나면 그 탭이 바로 tmux로 들어갑니다. 다음 접속부터는 자동으로 tmux예요.",
+                    stringResource(R.string.tmux_install_text),
                 )
             },
             confirmButton = {
@@ -552,11 +551,11 @@ fun TerminalScreen(
                     installTmuxAsk = false
                     noTmuxDismissed = true
                     val name = session.host.tmuxSession.ifBlank { "main" }.replace(Regex("[^A-Za-z0-9_.-]"), "_")
-                    val s = app.sessions.openExtra(session.host, TermSession.installTmuxCommand(name), "tmux 설치")
+                    val s = app.sessions.openExtra(session.host, TermSession.installTmuxCommand(name), res.getString(R.string.tmux_install_short))
                     onSwitch(s)
-                }) { Text("설치하기") }
+                }) { Text(stringResource(R.string.install_now_btn)) }
             },
-            dismissButton = { TextButton(onClick = { installTmuxAsk = false }) { Text("취소") } },
+            dismissButton = { TextButton(onClick = { installTmuxAsk = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
     if (paletteOpen) {

@@ -1,5 +1,7 @@
 package dev.panoterm.ui
 
+import androidx.compose.ui.res.stringResource
+import dev.panoterm.R
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -41,6 +43,7 @@ fun SettingsScreen(
 ) {
     val v by app.settings.values.collectAsState()
     val ctx = androidx.compose.ui.platform.LocalContext.current
+    val res = androidx.compose.ui.platform.LocalResources.current
     var backupMode by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<String?>(null) } // "export" | "import"
     var pendingUri by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<android.net.Uri?>(null) }
     var topBarEdit by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
@@ -57,7 +60,7 @@ fun SettingsScreen(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
-                title = { Text("설정") },
+                title = { Text(stringResource(R.string.settings_title)) },
                 navigationIcon = { TextButton(onClick = onBack) { Text("←") } },
             )
         },
@@ -66,86 +69,87 @@ fun SettingsScreen(
             Modifier.fillMaxSize().padding(pad).padding(16.dp).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Section("보안")
+            if (android.os.Build.VERSION.SDK_INT >= 33) LanguagePicker()
+
+            Section(stringResource(R.string.settings_security))
             Toggle(
-                "앱 열 때 생체인증", if (biometricAvailable) "지문/얼굴 인식으로 잠금 해제" else "이 기기에서 사용할 수 없음",
+                stringResource(R.string.settings_bio_app), if (biometricAvailable) stringResource(R.string.settings_bio_app_sub) else stringResource(R.string.settings_bio_unavailable),
                 v.biometricLock && biometricAvailable, enabled = biometricAvailable,
             ) { b -> app.settings.update { it.copy(biometricLock = b) } }
             Toggle(
-                "접속할 때 생체인증", "새 SSH 세션을 열 때마다 지문/얼굴 확인 (키 사용 보호)",
+                stringResource(R.string.settings_bio_connect), stringResource(R.string.settings_bio_connect_sub),
                 v.keyAuth && biometricAvailable, enabled = biometricAvailable,
             ) { b -> app.settings.update { it.copy(keyAuth = b) } }
 
-            Section("백업")
+            Section(stringResource(R.string.settings_backup))
             Text(
-                "호스트, SSH 키, 서버 지문, 명령 목록을 암호로 잠근 파일 하나로 저장합니다. 폰을 바꿀 때 쓰세요. " +
-                    "하드웨어(StrongBox) 키는 칩 밖으로 나올 수 없어서 빠집니다.",
+                stringResource(R.string.settings_backup_desc),
                 style = MaterialTheme.typography.bodySmall,
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                androidx.compose.material3.Button(onClick = { exportPicker.launch("panoterm-backup.ptbak") }) { Text("내보내기") }
-                androidx.compose.material3.OutlinedButton(onClick = { importPicker.launch(arrayOf("*/*")) }) { Text("가져오기") }
+                androidx.compose.material3.Button(onClick = { exportPicker.launch("panoterm-backup.ptbak") }) { Text(stringResource(R.string.settings_export)) }
+                androidx.compose.material3.OutlinedButton(onClick = { importPicker.launch(arrayOf("*/*")) }) { Text(stringResource(R.string.settings_import)) }
             }
 
-            Section("키보드 (K380 등)")
-            TextButton(onClick = onKeyBar) { Text("화면 키 줄 편집 →") }
-            TextButton(onClick = { topBarEdit = true }) { Text("터미널 상단 아이콘 편집 →") }
-            TextButton(onClick = onSnippets) { Text("명령(⚡) 편집 →") }
-            Toggle("CapsLock을 Ctrl로", "CapsLock을 누르고 있는 동안 Ctrl로 동작", v.capsAsCtrl) { b ->
+            Section(stringResource(R.string.settings_keyboard))
+            TextButton(onClick = onKeyBar) { Text(stringResource(R.string.settings_edit_keybar)) }
+            TextButton(onClick = { topBarEdit = true }) { Text(stringResource(R.string.settings_edit_topbar)) }
+            TextButton(onClick = onSnippets) { Text(stringResource(R.string.settings_edit_snippets)) }
+            Toggle(stringResource(R.string.settings_caps_ctrl), stringResource(R.string.settings_caps_ctrl_sub), v.capsAsCtrl) { b ->
                 app.settings.update { it.copy(capsAsCtrl = b) }
             }
-            Toggle("볼륨 아래 키 = Ctrl", "터미널에서 볼륨 아래 키를 누르면 다음 글자에 Ctrl 적용", v.volumeAsCtrl) { b ->
+            Toggle(stringResource(R.string.settings_vol_ctrl), stringResource(R.string.settings_vol_ctrl_sub), v.volumeAsCtrl) { b ->
                 app.settings.update { it.copy(volumeAsCtrl = b) }
             }
-            Toggle("두 손가락 왼쪽 밀기 = Esc", "Claude 작업 중단할 때 편해요", v.twoFingerEsc) { b ->
+            Toggle(stringResource(R.string.settings_two_finger_esc), stringResource(R.string.settings_two_finger_esc_sub), v.twoFingerEsc) { b ->
                 app.settings.update { it.copy(twoFingerEsc = b) }
             }
             Toggle(
-                "앱에서 한글 조합 (하드웨어 키보드)",
-                "보통은 끄세요: 휴대폰 키보드가 K380 한글도 조합해 줘요(삼성 키보드는 Shift+Space로 한/영). 휴대폰 키보드가 하드웨어 키보드 한글을 못 칠 때만 켜세요.",
+                stringResource(R.string.settings_app_hangul),
+                stringResource(R.string.settings_app_hangul_sub),
                 v.appHangul,
             ) { b -> app.settings.update { it.copy(appHangul = b) } }
             if (v.appHangul) {
-                Text("앱 한/영 전환 키", style = MaterialTheme.typography.bodyLarge)
+                Text(stringResource(R.string.settings_hangul_toggle), style = MaterialTheme.typography.bodyLarge)
                 Settings.HangulToggle.entries.forEach { t ->
                     Row(
                         Modifier.fillMaxWidth().clickable { app.settings.update { it.copy(hangulToggle = t) } },
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         RadioButton(selected = v.hangulToggle == t, onClick = { app.settings.update { it.copy(hangulToggle = t) } })
-                        Text(t.label)
+                        Text(stringResource(t.label))
                     }
                 }
                 Text(
-                    "휴대폰 키보드도 같은 키로 한/영을 바꾸면 둘이 엇갈려요. 휴대폰 키보드의 하드웨어 키보드 한/영 키와 다른 키를 고르세요. 앱이 한글일 때 상단에 '한'이 보여요.",
+                    stringResource(R.string.settings_hangul_toggle_note),
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
 
             Section("Claude Code")
-            Toggle("입력 자동완성", "/ 누르면 Claude 명령, cd ser 하면 service/ 같은 후보를 말풍선으로 보여줘요", v.autocomplete) { b ->
+            Toggle(stringResource(R.string.settings_autocomplete), stringResource(R.string.settings_autocomplete_sub), v.autocomplete) { b ->
                 app.settings.update { it.copy(autocomplete = b) }
             }
-            Toggle("작업 상태 탭", "세션·tmux 창마다 작업 중(파랑)/승인 대기(주황)를 위쪽 탭에 표시, 탭하면 바로 전환", v.agentTabs) { b ->
+            Toggle(stringResource(R.string.settings_agent_tabs), stringResource(R.string.settings_agent_tabs_sub), v.agentTabs) { b ->
                 app.settings.update { it.copy(agentTabs = b) }
             }
-            Toggle("승인 버튼 표시", "\"Do you want to proceed?\" 같은 선택지를 큰 버튼으로", v.approvalOverlay) { b ->
+            Toggle(stringResource(R.string.settings_approval), stringResource(R.string.settings_approval_sub), v.approvalOverlay) { b ->
                 app.settings.update { it.copy(approvalOverlay = b) }
             }
-            Toggle("터미널 벨 알림", "다른 화면에 있을 때 벨(입력 대기)을 알림으로", v.notifyOnBell) { b ->
+            Toggle(stringResource(R.string.settings_bell), stringResource(R.string.settings_bell_sub), v.notifyOnBell) { b ->
                 app.settings.update { it.copy(notifyOnBell = b) }
             }
-            Toggle("서버에서 클립보드 복사", "서버(tmux 등)에서 복사한 내용을 폰 클립보드로 받기. 켜면 화면에 출력된 내용이 클립보드를 바꿀 수 있어요", v.remoteClipboard) { b ->
+            Toggle(stringResource(R.string.settings_remote_clip), stringResource(R.string.settings_remote_clip_sub), v.remoteClipboard) { b ->
                 app.settings.update { it.copy(remoteClipboard = b) }
             }
-            Toggle("터미널에서 화면 켜짐 유지", null, v.keepScreenOn) { b ->
+            Toggle(stringResource(R.string.settings_keep_screen), null, v.keepScreenOn) { b ->
                 app.settings.update { it.copy(keepScreenOn = b) }
             }
-            Text("화면 그리기 방식 (터미널을 다시 열면 적용)", style = MaterialTheme.typography.bodyLarge)
+            Text(stringResource(R.string.settings_renderer), style = MaterialTheme.typography.bodyLarge)
             listOf(
-                "auto" to "자동 (추천) — GPU가 있으면 WebGL, 아니면 DOM",
-                "webgl" to "WebGL — 가장 빠름",
-                "dom" to "DOM — 느리지만 가장 호환성이 좋아요",
+                "auto" to stringResource(R.string.settings_renderer_auto),
+                "webgl" to stringResource(R.string.settings_renderer_webgl),
+                "dom" to stringResource(R.string.settings_renderer_dom),
             ).forEach { (id, label) ->
                 Row(
                     Modifier.fillMaxWidth().clickable { app.settings.update { it.copy(renderer = id) } },
@@ -156,32 +160,31 @@ fun SettingsScreen(
                 }
             }
 
-            Section("업데이트")
-            Text("현재 버전 ${dev.panoterm.BuildConfig.VERSION_NAME}", style = MaterialTheme.typography.bodyMedium)
+            Section(stringResource(R.string.settings_updates))
+            Text(stringResource(R.string.settings_version, dev.panoterm.BuildConfig.VERSION_NAME), style = MaterialTheme.typography.bodyMedium)
             UpdateCard(app)
-            Toggle("새 버전 확인", "앱을 열 때 GitHub 릴리스를 확인 (6시간에 한 번, 보내는 정보 없음)", v.updateCheck) { b ->
+            Toggle(stringResource(R.string.settings_check_updates), stringResource(R.string.settings_check_updates_sub), v.updateCheck) { b ->
                 app.settings.update { it.copy(updateCheck = b) }
             }
             Toggle(
-                "자동 업데이트", "새 버전을 알아서 받아서 설치. 열린 세션이 있으면 다 닫은 뒤에 설치해요.",
+                stringResource(R.string.settings_auto_update), stringResource(R.string.settings_auto_update_sub),
                 v.autoUpdate && v.updateCheck, enabled = v.updateCheck,
             ) { b -> app.settings.update { it.copy(autoUpdate = b) } }
             Toggle(
-                "Wi-Fi에서만 받기", "데이터 요금 아끼기 (APK가 40MB 정도)",
+                stringResource(R.string.settings_wifi_only), stringResource(R.string.settings_wifi_only_sub),
                 v.updateWifiOnly, enabled = v.autoUpdate && v.updateCheck,
             ) { b -> app.settings.update { it.copy(updateWifiOnly = b) } }
             Text(
-                "처음 한 번은 'PanoTerm에서 앱 설치 허용'을 켜야 하고, 설치 확인 창이 뜰 수도 있어요. 그다음부터는 확인 없이 설치됩니다. " +
-                    "받은 파일은 지금 앱과 같은 서명인지 확인한 뒤에만 설치해요.",
+                stringResource(R.string.settings_update_note),
                 style = MaterialTheme.typography.bodySmall,
             )
             TextButton(onClick = {
                 app.updates.check(force = true)
-                android.widget.Toast.makeText(ctx, "확인 중…", android.widget.Toast.LENGTH_SHORT).show()
-            }) { Text("지금 확인") }
+                android.widget.Toast.makeText(ctx, res.getString(R.string.settings_checking), android.widget.Toast.LENGTH_SHORT).show()
+            }) { Text(stringResource(R.string.settings_check_now)) }
 
-            Section("정보")
-            TextButton(onClick = onLicenses) { Text("오픈소스 라이선스") }
+            Section(stringResource(R.string.settings_about))
+            TextButton(onClick = onLicenses) { Text(stringResource(R.string.settings_licenses)) }
         }
     }
 
@@ -197,13 +200,13 @@ fun SettingsScreen(
                     if (mode == "export") {
                         val (blob, s) = dev.panoterm.data.Backup.export(app.hosts, app.keys, app.knownHosts.path, app.snippets, pw)
                         ctx.contentResolver.openOutputStream(uri, "wt")!!.use { it.write(blob) }
-                        "백업 완료: 호스트 ${s.hosts}개, 키 ${s.keys}개" + if (s.skippedHardwareKeys > 0) " (하드웨어 키 ${s.skippedHardwareKeys}개 제외)" else ""
+                        res.getString(R.string.backup_done, s.hosts, s.keys) + if (s.skippedHardwareKeys > 0) res.getString(R.string.backup_skipped_hw, s.skippedHardwareKeys) else ""
                     } else {
                         val blob = ctx.contentResolver.openInputStream(uri)!!.use { it.readBytes() }
                         val s = dev.panoterm.data.Backup.import(blob, pw, app.hosts, app.keys, app.knownHosts, app.snippets)
-                        "가져오기 완료: 호스트 ${s.hosts}개, 키 ${s.keys}개"
+                        res.getString(R.string.import_done, s.hosts, s.keys)
                     }
-                }.getOrElse { "실패: ${it.message}" }
+                }.getOrElse { res.getString(R.string.failed_with, it.message ?: it.toString()) }
                 pw.fill(' ')
                 android.widget.Toast.makeText(ctx, msg, android.widget.Toast.LENGTH_LONG).show()
             },
@@ -219,12 +222,12 @@ private fun BackupPasswordDialog(export: Boolean, onDismiss: () -> Unit, onConfi
     val ok = if (export) p1.text.length >= 8 && p1.text.contentEquals(p2.text) else p1.text.isNotEmpty()
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (export) "백업 암호 정하기" else "백업 암호 입력") },
+        title = { Text(stringResource(if (export) R.string.backup_pw_set else R.string.backup_pw_enter)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (export) Text("이 암호를 잊으면 백업을 열 수 없어요. 8자 이상.", style = MaterialTheme.typography.bodySmall)
-                androidx.compose.material3.OutlinedSecureTextField(p1, label = { Text("암호") })
-                if (export) androidx.compose.material3.OutlinedSecureTextField(p2, label = { Text("암호 확인") })
+                if (export) Text(stringResource(R.string.backup_pw_note), style = MaterialTheme.typography.bodySmall)
+                androidx.compose.material3.OutlinedSecureTextField(p1, label = { Text(stringResource(R.string.password)) })
+                if (export) androidx.compose.material3.OutlinedSecureTextField(p2, label = { Text(stringResource(R.string.password_confirm)) })
             }
         },
         confirmButton = {
@@ -232,9 +235,9 @@ private fun BackupPasswordDialog(export: Boolean, onDismiss: () -> Unit, onConfi
                 // Straight into a CharArray (no immutable String copy); the caller wipes it.
                 val t = p1.text
                 onConfirm(CharArray(t.length) { t[it] })
-            }) { Text("확인") }
+            }) { Text(stringResource(R.string.ok)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("취소") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
 }
 
@@ -252,5 +255,28 @@ private fun Toggle(title: String, sub: String?, checked: Boolean, enabled: Boole
             if (sub != null) Text(sub, style = MaterialTheme.typography.bodySmall)
         }
         Switch(checked = checked, onCheckedChange = onChange, enabled = enabled)
+    }
+}
+
+/** App language: follow the system, English or Korean (per-app locale, Android 13+). */
+@androidx.annotation.RequiresApi(33)
+@Composable
+private fun LanguagePicker() {
+    val ctx = androidx.compose.ui.platform.LocalContext.current
+    val lm = ctx.getSystemService(android.app.LocaleManager::class.java)
+    val current = lm.applicationLocales.takeIf { !it.isEmpty }?.get(0)?.language ?: ""
+    Section(stringResource(R.string.settings_language))
+    listOf(
+        "" to stringResource(R.string.lang_system),
+        "en" to "English",
+        "ko" to "한국어",
+    ).forEach { (tag, label) ->
+        fun pick() {
+            if (tag != current) lm.applicationLocales = if (tag.isEmpty()) android.os.LocaleList.getEmptyLocaleList() else android.os.LocaleList.forLanguageTags(tag)
+        }
+        Row(Modifier.fillMaxWidth().clickable { pick() }, verticalAlignment = Alignment.CenterVertically) {
+            RadioButton(selected = current == tag, onClick = { pick() })
+            Text(label, style = MaterialTheme.typography.bodyMedium)
+        }
     }
 }

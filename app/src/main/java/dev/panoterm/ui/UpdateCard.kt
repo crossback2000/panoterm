@@ -1,5 +1,7 @@
 package dev.panoterm.ui
 
+import androidx.compose.ui.res.stringResource
+import dev.panoterm.R
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
@@ -34,48 +36,48 @@ fun UpdateCard(app: App) {
         Column(Modifier.padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 4.dp)) {
             when (val st = s) {
                 is State.Available -> {
-                    Text("새 버전 ${st.u.version}이 나왔어요")
+                    Text(stringResource(R.string.upd_available, st.u.version))
                     Row {
-                        TextButton(onClick = { app.updates.download() }) { Text("받기") }
-                        TextButton(onClick = { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(st.u.url))) }) { Text("변경 내용") }
-                        TextButton(onClick = { app.updates.dismiss() }) { Text("나중에") }
+                        TextButton(onClick = { app.updates.download() }) { Text(stringResource(R.string.upd_get)) }
+                        TextButton(onClick = { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(st.u.url))) }) { Text(stringResource(R.string.upd_changes)) }
+                        TextButton(onClick = { app.updates.dismiss() }) { Text(stringResource(R.string.upd_later)) }
                     }
                 }
                 is State.Downloading -> {
-                    Text("${st.u.version} 받는 중… ${st.percent}%")
+                    Text(stringResource(R.string.upd_downloading, st.u.version, st.percent))
                     LinearProgressIndicator(progress = { st.percent / 100f }, modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp))
                 }
                 is State.Ready -> {
-                    Text("${st.u.version} 설치 준비됐어요")
+                    Text(stringResource(R.string.upd_ready, st.u.version))
                     if (sessions.isNotEmpty()) {
-                        Text("설치하면 앱이 다시 시작돼서 열린 세션이 끊겨요. 세션을 닫으면 자동으로 설치됩니다.", style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(R.string.upd_ready_note), style = MaterialTheme.typography.bodySmall)
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        TextButton(onClick = { app.updates.install() }) { Text("지금 설치") }
-                        TextButton(onClick = { app.updates.dismiss() }) { Text("나중에") }
+                        TextButton(onClick = { app.updates.install() }) { Text(stringResource(R.string.upd_install_now)) }
+                        TextButton(onClick = { app.updates.dismiss() }) { Text(stringResource(R.string.upd_later)) }
                     }
                 }
                 is State.NeedsPermission -> {
-                    Text("업데이트를 설치하려면 'PanoTerm에서 앱 설치 허용'을 한 번 켜주세요.", style = MaterialTheme.typography.bodyMedium)
+                    Text(stringResource(R.string.upd_need_perm), style = MaterialTheme.typography.bodyMedium)
                     Row {
                         TextButton(onClick = {
                             ctx.startActivity(
                                 Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${ctx.packageName}"))
                             )
-                        }) { Text("허용하러 가기") }
-                        TextButton(onClick = { app.updates.install() }) { Text("다시 설치") }
+                        }) { Text(stringResource(R.string.upd_go_allow)) }
+                        TextButton(onClick = { app.updates.install() }) { Text(stringResource(R.string.upd_retry_install)) }
                     }
                 }
                 is State.Installing -> {
-                    Text("${st.u.version} 설치 중…")
+                    Text(stringResource(R.string.upd_installing, st.u.version))
                     LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp))
                 }
                 is State.Failed -> {
                     Text(st.message, color = MaterialTheme.colorScheme.error)
                     Row {
-                        if (st.u != null) TextButton(onClick = { app.updates.download() }) { Text("다시 받기") }
-                        TextButton(onClick = { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(dev.panoterm.net.UpdateChecker.RELEASES))) }) { Text("직접 받기") }
-                        TextButton(onClick = { app.updates.dismiss() }) { Text("닫기") }
+                        if (st.u != null) TextButton(onClick = { app.updates.download() }) { Text(stringResource(R.string.upd_redownload)) }
+                        TextButton(onClick = { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(dev.panoterm.net.UpdateChecker.RELEASES))) }) { Text(stringResource(R.string.upd_manual)) }
+                        TextButton(onClick = { app.updates.dismiss() }) { Text(stringResource(R.string.close)) }
                     }
                 }
                 State.Idle -> {}

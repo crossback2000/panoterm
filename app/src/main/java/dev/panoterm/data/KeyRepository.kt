@@ -1,5 +1,7 @@
 package dev.panoterm.data
 
+import dev.panoterm.str
+import dev.panoterm.R
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.security.keystore.StrongBoxUnavailableException
@@ -54,7 +56,7 @@ class KeyRepository(private val dir: File) {
 
     /** <id>.key. Ids also come from backup files, so anything but a UUID is refused (no "../"). */
     private fun keyFile(id: String): File {
-        require(ID.matches(id)) { "잘못된 키 id" }
+        require(ID.matches(id)) { "bad key id" }
         return File(dir, "$id.key")
     }
 
@@ -96,7 +98,7 @@ class KeyRepository(private val dir: File) {
         val info = SshKeyInfo(
             id = id,
             name = name.ifBlank { "hardware" },
-            type = pub.getKeyType() + (if (strong) " · StrongBox" else " · TEE") + (if (userAuth) " · 생체인증" else ""),
+            type = pub.getKeyType() + (if (strong) " · StrongBox" else " · TEE") + (if (userAuth) str(R.string.key_type_bio) else ""),
             publicKey = pub.getPublicKey(),
             fingerprint = pub.getFingerprint(),
             createdAt = System.currentTimeMillis(),
@@ -118,7 +120,7 @@ class KeyRepository(private val dir: File) {
         override fun signSHA256(data: ByteArray): ByteArray {
             val ks = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
             val key = ks.getKey(alias(info.id), null) as? PrivateKey
-                ?: throw IllegalStateException("하드웨어 키를 찾을 수 없습니다")
+                ?: throw IllegalStateException(str(R.string.err_hw_key_missing))
             val sig = Signature.getInstance("SHA256withECDSA").apply { initSign(key) }
             if (info.userAuth) {
                 val p = KeyAuthPrompt(info.name, sig)
@@ -130,7 +132,7 @@ class KeyRepository(private val dir: File) {
                 } finally {
                     Prompts.keyAuth.compareAndSet(p, null)
                 }
-                if (!ok) throw IllegalStateException("키 사용 인증이 취소되었습니다")
+                if (!ok) throw IllegalStateException(str(R.string.err_key_auth_cancelled))
             }
             sig.update(data)
             return sig.sign()

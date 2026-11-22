@@ -1,5 +1,8 @@
 package dev.panoterm.ui
 
+import androidx.compose.ui.res.stringResource
+import dev.panoterm.str
+import dev.panoterm.R
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
@@ -24,20 +27,20 @@ import dev.panoterm.App
 data class TopAction(val id: String, val icon: String, val label: String)
 
 /** Every action that can be placed in the top bar (order here = order in the editor). */
-val ALL_TOP_ACTIONS: List<TopAction> = listOf(
-    TopAction("width", "↔", "넓게 보기 전환"),
-    TopAction("lens", "▦", "표 크게 보기"),
-    TopAction("reader", "📖", "읽기 모드"),
-    TopAction("palette", "⚡", "명령 팔레트"),
-    TopAction("image", "🖼", "이미지 보내기"),
-    TopAction("files", "📁", "파일 탐색기"),
-    TopAction("ports", "⇄", "포트 미리보기"),
-    TopAction("paste", "📋", "붙여넣기"),
-    TopAction("fontUp", "A+", "글자 크게"),
-    TopAction("fontDown", "A−", "글자 작게"),
-    TopAction("tmux", "⊞", "tmux 키 줄 보이기/숨기기"),
-    TopAction("keyboard", "⌨", "키보드 열기"),
-    TopAction("close", "✕", "연결 끊고 닫기"),
+val ALL_TOP_ACTIONS: List<TopAction> get() = listOf(
+    TopAction("width", "↔", str(R.string.top_width)),
+    TopAction("lens", "▦", str(R.string.top_lens)),
+    TopAction("reader", "📖", str(R.string.top_reader)),
+    TopAction("palette", "⚡", str(R.string.top_palette)),
+    TopAction("image", "🖼", str(R.string.top_image)),
+    TopAction("files", "📁", str(R.string.top_files)),
+    TopAction("ports", "⇄", str(R.string.top_ports)),
+    TopAction("paste", "📋", str(R.string.key_paste)),
+    TopAction("fontUp", "A+", str(R.string.top_fontUp)),
+    TopAction("fontDown", "A−", str(R.string.top_fontDown)),
+    TopAction("tmux", "⊞", str(R.string.top_tmux)),
+    TopAction("keyboard", "⌨", str(R.string.top_keyboard)),
+    TopAction("close", "✕", str(R.string.top_close)),
 )
 
 val DEFAULT_TOP_IDS = listOf("width", "lens", "files", "palette")
@@ -59,13 +62,12 @@ fun TopBarEditorDialog(app: App, onDismiss: () -> Unit) {
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("상단 아이콘 편집") },
+        title = { Text(stringResource(R.string.topbar_edit)) },
         text = {
             LazyColumn(Modifier.heightIn(max = 460.dp)) {
                 item {
                     Text(
-                        "체크한 아이콘이 위 막대에 순서대로 나와요. 나머지는 ⋮ 메뉴에 있어요. " +
-                            "화면이 좁으면 4~5개가 알맞아요.",
+                        stringResource(R.string.topbar_edit_desc),
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
@@ -82,7 +84,7 @@ fun TopBarEditorDialog(app: App, onDismiss: () -> Unit) {
                         }) { Text("▼") }
                     }
                 }
-                item { HorizontalDivider(Modifier.padding(vertical = 8.dp)); Text("⋮ 메뉴에만", style = MaterialTheme.typography.titleSmall) }
+                item { HorizontalDivider(Modifier.padding(vertical = 8.dp)); Text(stringResource(R.string.topbar_menu_only), style = MaterialTheme.typography.titleSmall) }
                 itemsIndexed(disabled, key = { _, id -> "off-$id" }) { _, id ->
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(checked = false, onCheckedChange = { save(enabled + id) })
@@ -91,7 +93,7 @@ fun TopBarEditorDialog(app: App, onDismiss: () -> Unit) {
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("완료") } },
-        dismissButton = { TextButton(onClick = { save(emptyList()) }) { Text("기본값") } },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.done)) } },
+        dismissButton = { TextButton(onClick = { save(emptyList()) }) { Text(stringResource(R.string.defaults)) } },
     )
 }

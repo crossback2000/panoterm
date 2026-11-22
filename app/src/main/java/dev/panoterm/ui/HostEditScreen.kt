@@ -1,5 +1,7 @@
 package dev.panoterm.ui
 
+import androidx.compose.ui.res.stringResource
+import dev.panoterm.R
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -61,7 +63,7 @@ fun HostEditScreen(app: App, hostId: String?, prefill: Host?, onDone: () -> Unit
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
-                title = { Text(if (hostId == null) "호스트 추가" else "호스트 편집") },
+                title = { Text(stringResource(if (hostId == null) R.string.host_add else R.string.host_edit)) },
                 navigationIcon = { TextButton(onClick = onDone) { Text("←") } },
             )
         },
@@ -70,24 +72,24 @@ fun HostEditScreen(app: App, hostId: String?, prefill: Host?, onDone: () -> Unit
             Modifier.fillMaxSize().padding(pad).padding(16.dp).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            OutlinedTextField(name, { name = it }, label = { Text("이름 (선택)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            OutlinedTextField(address, { address = it }, label = { Text("주소 (MagicDNS 이름 또는 IP)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(name, { name = it }, label = { Text(stringResource(R.string.host_name)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(address, { address = it }, label = { Text(stringResource(R.string.host_address)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
             Row {
                 OutlinedTextField(
-                    user, { user = it }, label = { Text("사용자") }, singleLine = true,
+                    user, { user = it }, label = { Text(stringResource(R.string.host_user)) }, singleLine = true,
                     modifier = Modifier.weight(2f),
                 )
                 Spacer(Modifier.width(8.dp))
                 OutlinedTextField(
-                    port, { port = it.filter(Char::isDigit) }, label = { Text("포트") }, singleLine = true,
+                    port, { port = it.filter(Char::isDigit) }, label = { Text(stringResource(R.string.port)) }, singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.weight(1f),
                 )
             }
 
-            Text("SSH 키", style = MaterialTheme.typography.titleSmall)
+            Text(stringResource(R.string.ssh_key), style = MaterialTheme.typography.titleSmall)
             if (keys.isEmpty()) {
-                Text("키가 없습니다. 호스트 목록 > SSH 키에서 먼저 생성하거나 가져오세요.", color = MaterialTheme.colorScheme.error)
+                Text(stringResource(R.string.host_no_keys), color = MaterialTheme.colorScheme.error)
             }
             keys.forEach { k ->
                 Row(Modifier.fillMaxWidth().clickable { keyId = k.id }, verticalAlignment = Alignment.CenterVertically) {
@@ -99,24 +101,24 @@ fun HostEditScreen(app: App, hostId: String?, prefill: Host?, onDone: () -> Unit
                 }
             }
 
-            SwitchRow("Tailscale(tailnet)로 연결", useTailnet) { useTailnet = it }
-            SwitchRow("접속 시 tmux 자동 연결", tmux) { tmux = it }
+            SwitchRow(stringResource(R.string.host_tailnet), useTailnet) { useTailnet = it }
+            SwitchRow(stringResource(R.string.host_tmux), tmux) { tmux = it }
             if (tmux) {
-                OutlinedTextField(tmuxSession, { tmuxSession = it }, label = { Text("tmux 세션 이름") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(tmuxSession, { tmuxSession = it }, label = { Text(stringResource(R.string.host_tmux_session)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
             }
             OutlinedTextField(
-                fontSize, { fontSize = it.filter(Char::isDigit) }, label = { Text("글자 크기 (8–32)") }, singleLine = true,
+                fontSize, { fontSize = it.filter(Char::isDigit) }, label = { Text(stringResource(R.string.host_font)) }, singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth(),
             )
 
             OutlinedTextField(
                 fixedCols, { fixedCols = it.filter(Char::isDigit).take(3) },
-                label = { Text("넓게 보기 열 수 (비우면 화면 맞춤, 예: 160)") }, singleLine = true,
+                label = { Text(stringResource(R.string.host_cols)) }, singleLine = true,
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth(),
             )
-            SwitchRow("끊기면 자동 재연결", autoReconnect) { autoReconnect = it }
+            SwitchRow(stringResource(R.string.host_auto_reconnect), autoReconnect) { autoReconnect = it }
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
@@ -139,15 +141,15 @@ fun HostEditScreen(app: App, hostId: String?, prefill: Host?, onDone: () -> Unit
                         )
                         onDone()
                     },
-                ) { Text("저장") }
+                ) { Text(stringResource(R.string.save)) }
                 if (hostId != null) {
                     androidx.compose.material3.OutlinedButton(onClick = {
                         app.hosts.get(hostId)?.let { dev.panoterm.Shortcuts.pin(ctx, it) }
-                    }) { Text("홈 화면에 추가") }
+                    }) { Text(stringResource(R.string.host_add_home)) }
                 }
                 if (hostId != null) {
                     TextButton(onClick = { app.hosts.delete(hostId); onDone() }) {
-                        Text("삭제", color = MaterialTheme.colorScheme.error)
+                        Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
                     }
                 }
             }

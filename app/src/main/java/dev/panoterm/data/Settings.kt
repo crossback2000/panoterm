@@ -1,16 +1,17 @@
 package dev.panoterm.data
 
+import dev.panoterm.R
 import android.content.Context
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /** App-wide preferences (local only). */
 class Settings(ctx: Context) {
-    enum class HangulToggle(val label: String) {
-        SHIFT_SPACE("Shift+Space"),
-        RIGHT_ALT("오른쪽 Alt"),
-        CTRL_SPACE("Ctrl+Space"),
-        OFF("사용 안 함"),
+    enum class HangulToggle(@androidx.annotation.StringRes val label: Int) {
+        SHIFT_SPACE(R.string.toggle_shift_space),
+        RIGHT_ALT(R.string.toggle_right_alt),
+        CTRL_SPACE(R.string.toggle_ctrl_space),
+        OFF(R.string.toggle_off),
     }
 
     data class Values(

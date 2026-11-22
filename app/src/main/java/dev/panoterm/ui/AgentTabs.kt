@@ -1,5 +1,7 @@
 package dev.panoterm.ui
 
+import androidx.compose.ui.res.stringResource
+import dev.panoterm.R
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -114,7 +116,7 @@ private fun Chip(label: String, state: AgentState, selected: Boolean, onTap: () 
         StateDot(state)
         Spacer(Modifier.width(5.dp))
         Text(
-            label + if (state == AgentState.WAITING) " · 대기" else "",
+            label + if (state == AgentState.WAITING) stringResource(R.string.agent_waiting_suffix) else "",
             color = Color.White, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal,
             modifier = Modifier.widthIn(max = 150.dp),

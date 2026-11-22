@@ -34,7 +34,7 @@ object Shortcuts {
     fun pin(ctx: Context, h: Host) {
         val sm = ctx.getSystemService(ShortcutManager::class.java)
         if (sm == null || !sm.isRequestPinShortcutSupported) {
-            Toast.makeText(ctx, "이 런처는 바로가기 고정을 지원하지 않습니다", Toast.LENGTH_SHORT).show()
+            Toast.makeText(ctx, ctx.getString(R.string.shortcut_unsupported), Toast.LENGTH_SHORT).show()
             return
         }
         sm.requestPinShortcut(info(ctx, h), null)

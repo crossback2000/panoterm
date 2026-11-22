@@ -1,5 +1,7 @@
 package dev.panoterm.net
 
+import dev.panoterm.str
+import dev.panoterm.R
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
@@ -116,7 +118,7 @@ class UpdateChecker(private val ctx: Context) {
                 _state.value = State.Available(u)
                 maybeAuto()
             } catch (e: Exception) {
-                if (force) _state.value = State.Failed(null, "확인 실패: ${e.message}")
+                if (force) _state.value = State.Failed(null, str(R.string.upd_check_failed, e.message ?: e.toString()))
             }
         }
     }
@@ -143,7 +145,7 @@ class UpdateChecker(private val ctx: Context) {
             is State.Failed -> s.u ?: return
             else -> return
         }
-        if (u.apkUrl.isBlank()) { _state.value = State.Failed(u, "릴리스에 APK가 없습니다"); return }
+        if (u.apkUrl.isBlank()) { _state.value = State.Failed(u, str(R.string.upd_no_apk)); return }
         scope.launch {
             val f = apkFile(u)
             // Already downloaded and intact (e.g. found again after a restart): no need to fetch it again.
@@ -168,20 +170,20 @@ class UpdateChecker(private val ctx: Context) {
                             if (n < 0) break
                             out.write(buf, 0, n)
                             done += n
-                            if (done > limit) throw java.io.IOException("파일이 예상보다 큽니다")
+                            if (done > limit) throw java.io.IOException(str(R.string.upd_too_big))
                             val pct = if (total > 0) (done * 100 / total).toInt() else 0
                             if (pct != lastPct) { lastPct = pct; _state.value = State.Downloading(u, pct) }
                         }
                     }
                 }
                 f.delete()
-                if (!tmp.renameTo(f)) throw java.io.IOException("파일을 저장하지 못했습니다")
+                if (!tmp.renameTo(f)) throw java.io.IOException(str(R.string.upd_save_failed))
                 verify(u, f)?.let { err -> f.delete(); _state.value = State.Failed(u, err); return@launch }
                 _state.value = State.Ready(u, f)
                 maybeAuto()
             } catch (e: Exception) {
                 tmp.delete()
-                _state.value = State.Failed(u, "다운로드 실패: ${e.message}")
+                _state.value = State.Failed(u, str(R.string.upd_download_failed, e.message ?: e.toString()))
             }
         }
     }
@@ -192,12 +194,12 @@ class UpdateChecker(private val ctx: Context) {
             val md = MessageDigest.getInstance("SHA-256")
             f.inputStream().use { s -> val b = ByteArray(64 * 1024); while (true) { val n = s.read(b); if (n < 0) break; md.update(b, 0, n) } }
             val hex = md.digest().joinToString("") { "%02x".format(it) }
-            if (!hex.equals(u.sha256, ignoreCase = true)) return "파일 해시가 맞지 않습니다 (손상되었거나 바뀐 파일)"
+            if (!hex.equals(u.sha256, ignoreCase = true)) return str(R.string.upd_bad_hash)
         }
         val pm = ctx.packageManager
         val archive = pm.getPackageArchiveInfo(f.path, PackageManager.GET_SIGNING_CERTIFICATES)
-            ?: return "APK를 읽을 수 없습니다"
-        if (archive.packageName != ctx.packageName) return "다른 앱의 APK입니다"
+            ?: return str(R.string.upd_bad_apk)
+        if (archive.packageName != ctx.packageName) return str(R.string.upd_other_app)
         val mine = pm.getPackageInfo(ctx.packageName, PackageManager.GET_SIGNING_CERTIFICATES)
         // Compare SHA-256 digests of the whole certificates (not a 32-bit hashCode).
         fun certs(info: android.content.pm.PackageInfo) = info.signingInfo?.apkContentsSigners
@@ -205,7 +207,7 @@ class UpdateChecker(private val ctx: Context) {
             ?.toSet()?.takeIf { it.isNotEmpty() }
         val a = certs(archive)
         val b = certs(mine)
-        if (a == null || b == null || a != b) return "서명이 지금 앱과 다릅니다. 설치하지 않습니다."
+        if (a == null || b == null || a != b) return str(R.string.upd_bad_sig)
         return null
     }
 
@@ -241,7 +243,7 @@ class UpdateChecker(private val ctx: Context) {
                     session.commit(pi.intentSender)
                 }
             } catch (e: Exception) {
-                _state.value = State.Failed(u, "설치 실패: ${e.message}")
+                _state.value = State.Failed(u, str(R.string.upd_install_failed, e.message ?: e.toString()))
             }
         }
     }
@@ -249,7 +251,7 @@ class UpdateChecker(private val ctx: Context) {
     /** Called by [UpdateReceiver] with the installer's result. */
     internal fun onInstallResult(ok: Boolean, message: String?) {
         val u = (_state.value as? State.Installing)?.u
-        if (!ok) _state.value = State.Failed(u, "설치 실패: ${message ?: "알 수 없는 오류"}")
+        if (!ok) _state.value = State.Failed(u, str(R.string.upd_install_failed, message ?: str(R.string.unknown_error)))
     }
 
     fun dismiss() { _state.value = State.Idle }
