@@ -1,5 +1,7 @@
 # Third-Party Notices
 
+**한국어** | [English](THIRD_PARTY_NOTICES.en.md)
+
 PanoTerm 자체는 [MIT 라이선스](LICENSE)입니다. 아래는 PanoTerm에 포함되거나 링크되는 외부 소프트웨어·폰트와 그 라이선스입니다.
 
 라이선스 전문은 [`app/src/main/assets/licenses/`](app/src/main/assets/licenses/)에 있으며 **APK에 그대로 포함**되어 앱의 **설정 → 오픈소스 라이선스** 화면(`ui/LicensesScreen.kt`)에서 볼 수 있습니다.
@@ -60,7 +62,7 @@ PanoTerm 자체는 [MIT 라이선스](LICENSE)입니다. 아래는 PanoTerm에 �
 
 새 라이브러리·폰트·에셋을 넣으면 **같은 커밋에서** 다음 세 곳을 함께 갱신합니다.
 
-1. 이 문서
+1. 이 문서와 영어판([THIRD_PARTY_NOTICES.en.md](THIRD_PARTY_NOTICES.en.md))
 2. `app/src/main/assets/licenses/` (전문 추가 — `scripts/fetch-assets.ps1`에 URL 추가)
 3. `app/src/main/java/dev/panoterm/ui/LicensesScreen.kt`
 
