@@ -11,12 +11,11 @@ PanoTerm 자체는 [MIT 라이선스](LICENSE)입니다. 아래는 PanoTerm에 �
 | 구성요소 | 버전 | 라이선스 | 저작권 | 포함 위치 | 라이선스 파일 |
 |---|---|---|---|---|---|
 | [D2Coding](https://github.com/naver/d2codingfont) 폰트 (Regular, Bold) | 1.3.2 (2018-05-24) | SIL Open Font License 1.1 | © 2015 NAVER Corporation, Reserved Font Name "D2Coding", "D2Coding-Bold" | `assets/term/fonts/` | `D2Coding.OFL.txt` (+ `fonts/OFL.txt`) |
-| [xterm.js](https://github.com/xtermjs/xterm.js) `@xterm/xterm` | 5.5.0 | MIT | © 2017-2019 The xterm.js authors, © 2014-2016 SourceLair Private Company, © 2012-2013 Christopher Jeffrey | `assets/term/xterm.js`, `xterm.css` | `xterm.LICENSE.txt` |
-| `@xterm/addon-fit` | 0.10.0 | MIT | © 2019 The xterm.js authors | `assets/term/addon-fit.js` | `xterm-addon-fit.LICENSE.txt` |
-| `@xterm/addon-unicode11` | 0.8.0 | MIT | © 2019 The xterm.js authors | `assets/term/addon-unicode11.js` | `xterm-addon-unicode11.LICENSE.txt` |
-| `@xterm/addon-web-links` | 0.11.0 | MIT | © 2017 The xterm.js authors | `assets/term/addon-web-links.js` | `xterm-addon-web-links.LICENSE.txt` |
-| `@xterm/addon-webgl` | 0.18.0 | MIT | © 2018 The xterm.js authors | `assets/term/addon-webgl.js` | `xterm-addon-webgl.LICENSE.txt` |
-| `@xterm/addon-canvas` | 0.7.0 | MIT | © 2017 The xterm.js authors | `assets/term/addon-canvas.js` | `xterm-addon-canvas.LICENSE.txt` |
+| [xterm.js](https://github.com/xtermjs/xterm.js) `@xterm/xterm` | 6.0.0 | MIT | © 2017-2019 The xterm.js authors, © 2014-2016 SourceLair Private Company, © 2012-2013 Christopher Jeffrey | `assets/term/xterm.js`, `xterm.css` | `xterm.LICENSE.txt` |
+| `@xterm/addon-fit` | 0.11.0 | MIT | © 2019 The xterm.js authors | `assets/term/addon-fit.js` | `xterm-addon-fit.LICENSE.txt` |
+| `@xterm/addon-unicode11` | 0.9.0 | MIT | © 2019 The xterm.js authors | `assets/term/addon-unicode11.js` | `xterm-addon-unicode11.LICENSE.txt` |
+| `@xterm/addon-web-links` | 0.12.0 | MIT | © 2017 The xterm.js authors | `assets/term/addon-web-links.js` | `xterm-addon-web-links.LICENSE.txt` |
+| `@xterm/addon-webgl` | 0.19.0 | MIT | © 2018 The xterm.js authors | `assets/term/addon-webgl.js` | `xterm-addon-webgl.LICENSE.txt` |
 
 **D2Coding(OFL) 조건 요약**: 소프트웨어와 함께 번들·재배포 가능, 라이선스 전문을 함께 배포해야 함, **폰트 단독 판매 금지**, 폰트를 수정하면 "D2Coding" 이름을 쓸 수 없음 → 원본 파일을 수정 없이 사용 중.
 

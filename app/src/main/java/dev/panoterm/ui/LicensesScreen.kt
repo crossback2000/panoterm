@@ -35,12 +35,11 @@ private data class Notice(val name: String, val license: String, val copyright: 
 
 private val NOTICES = listOf(
     Notice("D2Coding 폰트 1.3.2", "SIL Open Font License 1.1", "© 2015 NAVER Corporation", "D2Coding.OFL.txt"),
-    Notice("xterm.js 5.5.0", "MIT", "© The xterm.js authors, SourceLair, Christopher Jeffrey", "xterm.LICENSE.txt"),
-    Notice("@xterm/addon-fit 0.10.0", "MIT", "© The xterm.js authors", "xterm-addon-fit.LICENSE.txt"),
-    Notice("@xterm/addon-unicode11 0.8.0", "MIT", "© The xterm.js authors", "xterm-addon-unicode11.LICENSE.txt"),
-    Notice("@xterm/addon-web-links 0.11.0", "MIT", "© The xterm.js authors", "xterm-addon-web-links.LICENSE.txt"),
-    Notice("@xterm/addon-webgl 0.18.0", "MIT", "© The xterm.js authors", "xterm-addon-webgl.LICENSE.txt"),
-    Notice("@xterm/addon-canvas 0.7.0", "MIT", "© The xterm.js authors", "xterm-addon-canvas.LICENSE.txt"),
+    Notice("xterm.js 6.0.0", "MIT", "© The xterm.js authors, SourceLair, Christopher Jeffrey", "xterm.LICENSE.txt"),
+    Notice("@xterm/addon-fit 0.11.0", "MIT", "© The xterm.js authors", "xterm-addon-fit.LICENSE.txt"),
+    Notice("@xterm/addon-unicode11 0.9.0", "MIT", "© The xterm.js authors", "xterm-addon-unicode11.LICENSE.txt"),
+    Notice("@xterm/addon-web-links 0.12.0", "MIT", "© The xterm.js authors", "xterm-addon-web-links.LICENSE.txt"),
+    Notice("@xterm/addon-webgl 0.19.0", "MIT", "© The xterm.js authors", "xterm-addon-webgl.LICENSE.txt"),
     Notice("Tailscale (tsnet)", "BSD-3-Clause", "© 2020 Tailscale Inc & contributors", "tailscale.LICENSE.txt"),
     Notice("wireguard-go", "MIT", "© WireGuard LLC", "wireguard-go.LICENSE.txt"),
     Notice("Go 표준 라이브러리", "BSD-3-Clause", "© 2009 The Go Authors", "go.LICENSE.txt"),

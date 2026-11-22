@@ -143,9 +143,8 @@ fun SettingsScreen(
             }
             Text("화면 그리기 방식 (터미널을 다시 열면 적용)", style = MaterialTheme.typography.bodyLarge)
             listOf(
-                "auto" to "자동 (추천) — GPU가 있으면 WebGL, 아니면 Canvas",
+                "auto" to "자동 (추천) — GPU가 있으면 WebGL, 아니면 DOM",
                 "webgl" to "WebGL — 가장 빠름",
-                "canvas" to "Canvas — 빠르고 어느 폰에서나 잘 나와요",
                 "dom" to "DOM — 느리지만 가장 호환성이 좋아요",
             ).forEach { (id, label) ->
                 Row(
