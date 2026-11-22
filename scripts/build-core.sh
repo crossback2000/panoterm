@@ -9,8 +9,8 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 : "${ANDROID_HOME:=${ANDROID_SDK_ROOT:-$HOME/Android/Sdk}}"
 export ANDROID_HOME
 if [ -z "${ANDROID_NDK_HOME:-}" ]; then
-  if [ -d "$ANDROID_HOME/ndk/29.0.14206865" ]; then
-    ANDROID_NDK_HOME="$ANDROID_HOME/ndk/29.0.14206865"
+  if [ -d "$ANDROID_HOME/ndk/30.0.16248370" ]; then
+    ANDROID_NDK_HOME="$ANDROID_HOME/ndk/30.0.16248370"
   else
     ANDROID_NDK_HOME=$(ls -d "$ANDROID_HOME"/ndk/* 2>/dev/null | sort -V | tail -n 1 || true)
   fi
