@@ -536,7 +536,15 @@ private fun reread(session: TermSession, path: String): OpenFile {
     return OpenFile(fd.path, if (crlf) dec.first.replace("\r\n", "\n") else dec.first, fd.modTime, fd.size, crlf, dec.second && fd.size <= EDIT_MAX)
 }
 
-/** Syntax colours while editing (the text itself is unchanged: identity offsets). */
+/**
+ * Syntax colours while editing (the text itself is unchanged: identity offsets).
+ *
+ * Stays on the value-based BasicTextField + VisualTransformation (deprecated in Compose 1.13):
+ * the state-based replacement can only colour text through OutputTransformation.addStyle,
+ * which is still behind ComposeFoundationFlags.isBasicTextFieldStyledTextEnabled.
+ * Migrate once styled text is on by default.
+ */
+@Suppress("DEPRECATION")
 private class HighlightTransformation(private val lang: Syntax.Lang) : VisualTransformation {
     private var lastText: String? = null
     private var last: AnnotatedString? = null
@@ -564,6 +572,7 @@ private class HighlightTransformation(private val lang: Syntax.Lang) : VisualTra
     }
 }
 
+@Suppress("DEPRECATION") // value-based BasicTextField: see HighlightTransformation
 @Composable
 private fun FileEditor(
     session: TermSession,

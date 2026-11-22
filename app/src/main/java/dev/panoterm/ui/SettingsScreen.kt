@@ -213,26 +213,27 @@ fun SettingsScreen(
 
 @Composable
 private fun BackupPasswordDialog(export: Boolean, onDismiss: () -> Unit, onConfirm: (CharArray) -> Unit) {
-    var p1 by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
-    var p2 by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf("") }
-    val ok = if (export) p1.length >= 8 && p1 == p2 else p1.isNotEmpty()
+    // Secure fields: no copy/cut, password keyboard, nothing learned by the IME.
+    val p1 = androidx.compose.foundation.text.input.rememberTextFieldState()
+    val p2 = androidx.compose.foundation.text.input.rememberTextFieldState()
+    val ok = if (export) p1.text.length >= 8 && p1.text.contentEquals(p2.text) else p1.text.isNotEmpty()
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (export) "백업 암호 정하기" else "백업 암호 입력") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (export) Text("이 암호를 잊으면 백업을 열 수 없어요. 8자 이상.", style = MaterialTheme.typography.bodySmall)
-                androidx.compose.material3.OutlinedTextField(
-                    p1, { p1 = it }, label = { Text("암호") }, singleLine = true,
-                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                )
-                if (export) androidx.compose.material3.OutlinedTextField(
-                    p2, { p2 = it }, label = { Text("암호 확인") }, singleLine = true,
-                    visualTransformation = androidx.compose.ui.text.input.PasswordVisualTransformation(),
-                )
+                androidx.compose.material3.OutlinedSecureTextField(p1, label = { Text("암호") })
+                if (export) androidx.compose.material3.OutlinedSecureTextField(p2, label = { Text("암호 확인") })
             }
         },
-        confirmButton = { TextButton(enabled = ok, onClick = { onConfirm(p1.toCharArray()) }) { Text("확인") } },
+        confirmButton = {
+            TextButton(enabled = ok, onClick = {
+                // Straight into a CharArray (no immutable String copy); the caller wipes it.
+                val t = p1.text
+                onConfirm(CharArray(t.length) { t[it] })
+            }) { Text("확인") }
+        },
         dismissButton = { TextButton(onClick = onDismiss) { Text("취소") } },
     )
 }

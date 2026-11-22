@@ -249,8 +249,8 @@ class TermSession(
                     setUser(h.user.trim())
                     if (pem != null) setPrivateKey(pem)
                     setUseTailnet(h.useTailnet)
-                    setCols(cols.toLong())
-                    setRows(rows.toLong())
+                    setCols(cols)
+                    setRows(rows)
                     setCommand(startupCommand(h))
                     setEnv("MOBILE_TERM=1\nLANG=C.UTF-8")
                 }
