@@ -175,7 +175,7 @@ func openSession(n *Node, o *ConnectOptions, signer ssh.Signer, v HostKeyVerifie
 
 	s := &Session{client: client, sess: sess, stdin: stdin, l: l, done: make(chan struct{})}
 	go s.readLoop(stdout)
-	go s.keepAlive()
+	go s.keepAlive(keepAliveInterval, keepAliveMaxMisses)
 	go func() {
 		err := sess.Wait()
 		if err != nil {
@@ -202,31 +202,47 @@ func (s *Session) readLoop(r io.Reader) {
 	}
 }
 
-func (s *Session) keepAlive() {
-	t := time.NewTicker(15 * time.Second)
+// Keepalive policy, like OpenSSH's ServerAliveInterval/ServerAliveCountMax:
+// probe every keepAliveInterval and give up only after keepAliveMaxMisses
+// consecutive intervals pass without a reply (~45-60s). Mobile links stall
+// briefly all the time (Wi-Fi/LTE handover, Doze), so one slow reply must not
+// kill the session. Vars so tests can shorten them.
+var (
+	keepAliveInterval  = 15 * time.Second
+	keepAliveMaxMisses = 3
+)
+
+func (s *Session) keepAlive(interval time.Duration, maxMisses int) {
+	t := time.NewTicker(interval)
 	defer t.Stop()
+	replies := make(chan error, 1) // at most one probe in flight
+	pending := false
+	misses := 0
 	for {
 		select {
 		case <-s.done:
 			return
-		case <-t.C:
-		}
-		errc := make(chan error, 1)
-		go func() {
-			_, _, err := s.client.SendRequest("keepalive@openssh.com", true, nil)
-			errc <- err
-		}()
-		select {
-		case err := <-errc:
+		case err := <-replies:
+			pending = false
 			if err != nil {
 				s.finish("connection lost: " + err.Error())
 				return
 			}
-		case <-time.After(20 * time.Second):
-			s.finish("connection lost (keepalive timeout)")
-			return
-		case <-s.done:
-			return
+			misses = 0
+		case <-t.C:
+			if pending {
+				misses++
+				if misses >= maxMisses {
+					s.finish("connection lost (keepalive timeout)")
+					return
+				}
+				continue
+			}
+			pending = true
+			go func() {
+				_, _, err := s.client.SendRequest("keepalive@openssh.com", true, nil)
+				replies <- err
+			}()
 		}
 	}
 }
