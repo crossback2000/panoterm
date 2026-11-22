@@ -307,7 +307,7 @@ fun FileBrowser(session: TermSession, fontSize: Int, onInsertPath: (String) -> U
         }
         if (entries.size > 12 || filter.isNotEmpty()) {
             OutlinedTextField(
-                filter, { filter = it }, placeholder = { Text("이름으로 거르기") }, singleLine = true,
+                filter, { filter = it }, placeholder = { Text("파일 이름 검색") }, singleLine = true,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp),
             )
         }

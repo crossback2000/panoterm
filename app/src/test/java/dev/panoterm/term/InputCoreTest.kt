@@ -56,6 +56,37 @@ class InputCoreTest {
         assertEquals("되요?", out)
     }
 
+    @Test fun backspaceKeyDuringEnglishCompositionEditsTheComposition() {
+        // v1.3.16: Samsung Keyboard composes English words and passes ⌫ on as a key event.
+        // The word must stay composing (one letter shorter), not be sent to the terminal.
+        ime { setComposingText("hello") }
+        assertTrue(core.backspaceKey())
+        assertEquals("", out)
+        assertEquals("hell", composing)
+        assertEquals(listOf(4, 4, 0, 4), selections.last())
+        ime { setComposingText("help") }
+        ime { commitText("help") }
+        assertEquals("help", out)
+    }
+
+    @Test fun backspaceKeyDeletesCommittedText() {
+        ime { commitText("abc") }
+        assertTrue(core.backspaceKey())
+        assertTrue(core.backspaceKey())
+        assertEquals("abc\u007f\u007f", out)
+        assertEquals(listOf(1, 1, -1, -1), selections.last())
+    }
+
+    @Test fun backspaceKeyOnEmptyBufferGoesToTheTerminal() {
+        assertFalse(core.backspaceKey())
+        ime { setComposingText("a") }
+        assertTrue(core.backspaceKey())
+        assertEquals("", composing)
+        assertEquals("", out)
+        // Buffer empty now: the next ⌫ is the terminal's.
+        assertFalse(core.backspaceKey())
+    }
+
     @Test fun enterDuringCompositionThenKeyboardFinishes() {
         ime { setComposingText("안") }
         core.settle(); sent += "\r"
