@@ -8,12 +8,13 @@ ROOT=$(cd "$(dirname "$0")/.." && pwd)
 
 : "${ANDROID_HOME:=${ANDROID_SDK_ROOT:-$HOME/Android/Sdk}}"
 export ANDROID_HOME
-if [ -z "${ANDROID_NDK_HOME:-}" ]; then
-  if [ -d "$ANDROID_HOME/ndk/30.0.16248370" ]; then
-    ANDROID_NDK_HOME="$ANDROID_HOME/ndk/30.0.16248370"
-  else
-    ANDROID_NDK_HOME=$(ls -d "$ANDROID_HOME"/ndk/* 2>/dev/null | sort -V | tail -n 1 || true)
-  fi
+# The pinned NDK wins when installed, even over a preset ANDROID_NDK_HOME: GitHub runners
+# export one pointing at their preinstalled (older) NDK, which silently replaced the pin.
+NDK_VERSION=30.0.16248370
+if [ -d "$ANDROID_HOME/ndk/$NDK_VERSION" ]; then
+  ANDROID_NDK_HOME="$ANDROID_HOME/ndk/$NDK_VERSION"
+elif [ -z "${ANDROID_NDK_HOME:-}" ]; then
+  ANDROID_NDK_HOME=$(ls -d "$ANDROID_HOME"/ndk/* 2>/dev/null | sort -V | tail -n 1 || true)
 fi
 [ -n "$ANDROID_NDK_HOME" ] && [ -d "$ANDROID_NDK_HOME" ] || { echo "NDK not found under $ANDROID_HOME/ndk" >&2; exit 1; }
 export ANDROID_NDK_HOME
