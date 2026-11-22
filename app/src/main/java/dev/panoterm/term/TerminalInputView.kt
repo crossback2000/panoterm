@@ -2,7 +2,6 @@ package dev.panoterm.term
 
 import android.content.Context
 import android.text.InputType
-import android.view.KeyCharacterMap
 import android.view.KeyEvent
 import android.view.View
 import android.view.inputmethod.BaseInputConnection
@@ -123,27 +122,28 @@ class TerminalInputView(ctx: Context) : View(ctx) {
      */
     fun settle() {
         if (mirror.isClean) return
-        val wasComposing = mirror.hasComposing
-        emit(mirror.flush())
-        afterReset(wasComposing)
+        send(mirror.flush())
+        afterReset()
+    }
+
+    /** Text from the buffer that sticky Ctrl/Alt must not apply to (it was typed before them). */
+    private fun send(out: ImeMirror.Out) {
+        if (out.deletes > 0) onBytes(ByteArray(out.deletes) { 0x7f })
+        if (out.text.isNotEmpty()) onBytes(out.text.replace("\r\n", "\r").replace('\n', '\r').toByteArray())
     }
 
     private fun resetMirror() {
-        val wasComposing = mirror.hasComposing
         mirror.reset()
-        afterReset(wasComposing)
+        afterReset()
     }
 
-    private fun afterReset(wasComposing: Boolean) {
+    /**
+     * Tells the keyboard its field is empty and nothing is composing, as a text field cleared by
+     * the app would. Never restartInput: Samsung Keyboard comes back from a restart in English.
+     */
+    private fun afterReset() {
         onComposing("")
-        if (wasComposing) {
-            // The keyboard still holds that composition: make it start over. Whatever it does with
-            // it on the old connection (some commit it after the key event) is ignored.
-            icGeneration++
-            imm.restartInput(this)
-        } else {
-            reportSelection()
-        }
+        reportSelection()
     }
 
     /** Tells the keyboard where the cursor and composition are, as a text field would. */
@@ -167,7 +167,7 @@ class TerminalInputView(ctx: Context) : View(ctx) {
     fun handleHardwareKey(e: KeyEvent): Boolean {
         val capsAsCtrl = settings().capsAsCtrl
         if (capsAsCtrl && e.keyCode == KeyEvent.KEYCODE_CAPS_LOCK) { capsHeld = true; return true }
-        val ctrl = e.isCtrlPressed || capsHeld || stickyCtrl
+        val ctrl = e.isCtrlPressed || (capsAsCtrl && capsHeld) || stickyCtrl
         val alt = e.isAltPressed || stickyAlt
         val plain = !ctrl && !alt && !e.isMetaPressed
 
@@ -176,18 +176,6 @@ class TerminalInputView(ctx: Context) : View(ctx) {
             val wasComposing = mirror.hasComposing
             if (mirror.backspace()) {
                 if (wasComposing) settle() else afterImeEdit()
-                return true
-            }
-        }
-        // A character key while the keyboard is composing goes into its buffer, after the syllable.
-        // settle() would restart the keyboard, and Samsung Keyboard comes back in English.
-        if (plain && mirror.hasComposing && !hangul.isComposing &&
-            !(e.keyCode == KeyEvent.KEYCODE_SPACE && e.isShiftPressed)
-        ) {
-            val cp = e.getUnicodeChar(if (capsAsCtrl) e.metaState and KeyEvent.META_CAPS_LOCK_ON.inv() else e.metaState)
-            if (cp > 0 && (cp and KeyCharacterMap.COMBINING_ACCENT) == 0 && !Character.isISOControl(cp)) {
-                mirror.typeKey(String(Character.toChars(cp)))
-                afterImeEdit()
                 return true
             }
         }
@@ -224,8 +212,23 @@ class TerminalInputView(ctx: Context) : View(ctx) {
 
     /** Hardware key up. Returns true if consumed. */
     fun handleHardwareKeyUp(e: KeyEvent): Boolean {
-        if (e.keyCode == KeyEvent.KEYCODE_CAPS_LOCK && settings().capsAsCtrl) { capsHeld = false; return true }
+        if (e.keyCode == KeyEvent.KEYCODE_CAPS_LOCK) {
+            val wasHeld = capsHeld
+            capsHeld = false
+            return wasHeld || settings().capsAsCtrl
+        }
         return false
+    }
+
+    // CapsLock's key-up never arrives if focus moves while it is held: it would stay Ctrl.
+    override fun onFocusChanged(gainFocus: Boolean, direction: Int, previouslyFocusedRect: android.graphics.Rect?) {
+        super.onFocusChanged(gainFocus, direction, previouslyFocusedRect)
+        if (!gainFocus) capsHeld = false
+    }
+
+    override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
+        super.onWindowFocusChanged(hasWindowFocus)
+        if (!hasWindowFocus) capsHeld = false
     }
 
     // ---------------------------------------------------------------- key bar

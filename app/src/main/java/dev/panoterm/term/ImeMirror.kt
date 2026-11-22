@@ -32,8 +32,11 @@ class ImeMirror {
     /** Composing region, -1 when there is none. Never empty. */
     var compStart = -1; private set
     var compEnd = -1; private set
-    /** The composition was already sent ([typeKey]): it counts as committed until it ends. */
-    private var compSent = false
+    /**
+     * A composition [flush] took from the keyboard. Keyboards may still commit it
+     * afterwards (some do after the key event that ended it); that commit is already here.
+     */
+    private var orphan: String? = null
 
     val text: String get() = buf.toString()
     val length: Int get() = buf.length
@@ -56,58 +59,30 @@ class ImeMirror {
 
     /** Replaces the composing region (or the selection) with [t] and makes it the composing region. */
     fun setComposingText(t: String, newCursorPosition: Int = 1) {
+        orphan = null
         val (a, b) = replaceRange()
-        val keep = keyAfter(b)
         buf.replace(a, b, t)
         setComposing(a, a + t.length)
         placeCursor(a, t.length, newCursorPosition)
-        keep?.let { selStart = it + t.length - (b - a); selEnd = selStart }
     }
 
     /** Replaces the composing region (or the selection) with [t] and ends the composition. */
     fun commitText(t: String, newCursorPosition: Int = 1) {
+        if (!hasComposing && t == orphan) { orphan = null; return }
+        orphan = null
         val (a, b) = replaceRange()
-        val keep = keyAfter(b)
         buf.replace(a, b, t)
         clearComposing()
         placeCursor(a, t.length, newCursorPosition)
-        keep?.let { selStart = it + t.length - (b - a); selEnd = selStart }
     }
-
-    /**
-     * After [typeKey] the cursor sits past the key, outside the composition. A keyboard still
-     * working on that composition puts the cursor right after it; keep it after the key instead,
-     * where the terminal's cursor is. Returns the cursor to keep, or null.
-     */
-    private fun keyAfter(compEnd: Int): Int? =
-        if (compSent && selStart == selEnd && selStart > compEnd) selStart else null
 
     fun finishComposingText() = clearComposing()
 
     /** Marks existing text as composing (Gboard does this to reopen the previous syllable). */
     fun setComposingRegion(start: Int, end: Int) {
+        orphan = null
         val a = start.coerceIn(0, buf.length); val b = end.coerceIn(0, buf.length)
-        compSent = false
         setComposing(minOf(a, b), maxOf(a, b))
-    }
-
-    /**
-     * A character key the keyboard passed on while composing (? or ! after a syllable). Typed at
-     * the cursor like a text field's key listener would, leaving the composition to the keyboard;
-     * the composition goes to the terminal first, so "되요?" doesn't come out as "되?요". The
-     * keyboard committing it later (or editing it) is then a no-op or a correction, not a repeat.
-     * Restarting the keyboard instead would drop its language (Samsung falls back to English).
-     */
-    fun typeKey(t: String) {
-        val a = selMin; val b = selMax
-        delete(a, b)
-        buf.insert(a, t)
-        if (hasComposing) {
-            if (compStart >= a) compStart += t.length
-            if (compEnd > a) compEnd += t.length
-            compSent = true
-        }
-        selStart = a + t.length; selEnd = selStart
     }
 
     fun setSelection(start: Int, end: Int) {
@@ -120,6 +95,7 @@ class ImeMirror {
      * buffer: some keyboards delete without looking, and those must still reach the terminal.
      */
     fun deleteSurroundingText(before: Int, after: Int): Int {
+        orphan = null
         var a = selMin; var b = selMax
         if (hasComposing) { a = minOf(a, compStart); b = maxOf(b, compEnd) }
         val wantBefore = before.coerceAtLeast(0)
@@ -132,6 +108,7 @@ class ImeMirror {
 
     /** Same as [deleteSurroundingText], counted in code points (emoji are two chars). */
     fun deleteSurroundingTextInCodePoints(before: Int, after: Int): Int {
+        orphan = null
         var a = selMin; var b = selMax
         if (hasComposing) { a = minOf(a, compStart); b = maxOf(b, compEnd) }
         var from = a; var cps = 0
@@ -146,6 +123,7 @@ class ImeMirror {
 
     /** Replaces [start, end) with [t] (InputConnection.replaceText). */
     fun replaceText(start: Int, end: Int, t: String, newCursorPosition: Int = 1) {
+        orphan = null
         val a = minOf(start, end).coerceIn(0, buf.length); val b = maxOf(start, end).coerceIn(0, buf.length)
         selStart = a; selEnd = b
         clearComposing()
@@ -158,6 +136,7 @@ class ImeMirror {
      * is nothing in the buffer to delete, so the DEL should go straight to the terminal.
      */
     fun backspace(): Boolean {
+        orphan = null
         if (selMin != selMax) { delete(selMin, selMax); return true }
         if (selMin == 0) return false
         delete(selMin - Character.charCount(buf.codePointBefore(selMin)), selMin)
@@ -174,6 +153,9 @@ class ImeMirror {
      * the keyboard's text field and must come after what is on screen.
      */
     fun flush(): Out {
+        // The keyboard learns from the selection update that its composition ended (as when a
+        // text field is cleared). If it commits it anyway, that commit is dropped.
+        if (hasComposing) orphan = composing
         val out = diffTo(buf.toString())
         reset()
         return out
@@ -187,7 +169,7 @@ class ImeMirror {
     }
 
     private fun committed(): String =
-        if (hasComposing && !compSent) buf.substring(0, compStart) + buf.substring(compEnd) else buf.toString()
+        if (hasComposing) buf.substring(0, compStart) + buf.substring(compEnd) else buf.toString()
 
     private fun diffTo(target: String): Out {
         var p = 0
@@ -209,7 +191,7 @@ class ImeMirror {
         if (a < b) { compStart = a; compEnd = b } else clearComposing()
     }
 
-    private fun clearComposing() { compStart = -1; compEnd = -1; compSent = false }
+    private fun clearComposing() { compStart = -1; compEnd = -1 }
 
     /** newCursorPosition as defined by InputConnection.setComposingText / commitText. */
     private fun placeCursor(start: Int, len: Int, newCursorPosition: Int) {
