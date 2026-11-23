@@ -103,7 +103,7 @@ See [DESIGN.en.md](DESIGN.en.md) for the detailed design.
 | Clipboard | Server-to-phone clipboard copy (OSC 52) is off by default. OSC 8 links show the real address and ask before opening. |
 | Data collection | No analytics or telemetry. The only outbound call besides your SSH traffic is the update check (GitHub API), which can be turned off. |
 
-If you find a security vulnerability, please don't post reproduction details in a public issue; open an issue asking for a private contact instead.
+Please report security vulnerabilities privately through the repository's **Security tab → [Report a vulnerability](../../security/advisories/new)** instead of a public issue. Reports are visible only to the maintainers.
 
 ---
 
