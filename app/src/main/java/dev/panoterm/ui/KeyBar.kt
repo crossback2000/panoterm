@@ -1,5 +1,7 @@
 package dev.panoterm.ui
 
+import dev.panoterm.str
+import dev.panoterm.R
 import android.view.HapticFeedbackConstants
 import android.view.KeyEvent
 import androidx.compose.foundation.background
@@ -62,7 +64,7 @@ sealed interface BarKey {
 }
 
 /** Every key that can be placed on the bottom row (order here = order in the editor). */
-val ALL_KEYS: List<BarKey> = listOf(
+val ALL_KEYS: List<BarKey> get() = listOf(
     BarKey.Code("esc", "Esc", KeyEvent.KEYCODE_ESCAPE),
     BarKey.Code("stab", "⇧Tab", KeyEvent.KEYCODE_TAB, shift = true),
     BarKey.Raw("esc2", "Esc²", "\u001b\u001b"),
@@ -89,27 +91,27 @@ val ALL_KEYS: List<BarKey> = listOf(
     BarKey.Raw("ctrlr", "^R", "\u0012"),
     BarKey.Raw("ctrlo", "^O", "\u000f"),
     BarKey.Raw("ctrld", "^D", "\u0004"),
-    BarKey.Raw("nl", "⇧⏎ 줄바꿈", "\u001b\r"),
+    BarKey.Raw("nl", str(R.string.key_newline), "\u001b\r"),
 )
 
 /** What a key does, shown under its label in the key bar editor (short labels like ⇧Tab are cryptic). */
-val KEY_HELP: Map<String, String> = mapOf(
-    "esc" to "Esc · Claude Code 작업 중단",
-    "stab" to "Shift+Tab · Claude Code 모드 전환 (자동 수락 / 계획 모드)",
-    "esc2" to "Esc 두 번 · Claude Code 이전 메시지로 되돌리기",
-    "ctrlc" to "Ctrl+C · 실행 중인 명령 중단",
-    "tab" to "Tab · 자동 완성",
-    "ctrl" to "다음에 누르는 키 하나에 Ctrl을 붙임",
-    "alt" to "다음에 누르는 키 하나에 Alt를 붙임",
-    "pad" to "좌우로 끌면 커서 이동",
-    "palette" to "명령 모음 열기",
-    "bs" to "백스페이스 (한 글자 지우기)",
-    "home" to "줄 맨 앞으로",
-    "end" to "줄 맨 끝으로",
-    "ctrlr" to "Ctrl+R · 입력 기록 검색",
-    "ctrlo" to "Ctrl+O · Claude Code 상세 보기",
-    "ctrld" to "Ctrl+D · 입력 끝 / 셸 종료",
-    "nl" to "Shift+Enter · 보내지 않고 줄만 바꿈",
+val KEY_HELP: Map<String, String> get() = mapOf(
+    "esc" to str(R.string.keyhelp_esc),
+    "stab" to str(R.string.keyhelp_stab),
+    "esc2" to str(R.string.keyhelp_esc2),
+    "ctrlc" to str(R.string.keyhelp_ctrlc),
+    "tab" to str(R.string.keyhelp_tab),
+    "ctrl" to str(R.string.keyhelp_ctrl),
+    "alt" to str(R.string.keyhelp_alt),
+    "pad" to str(R.string.keyhelp_pad),
+    "palette" to str(R.string.keyhelp_palette),
+    "bs" to str(R.string.keyhelp_bs),
+    "home" to str(R.string.keyhelp_home),
+    "end" to str(R.string.keyhelp_end),
+    "ctrlr" to str(R.string.keyhelp_ctrlr),
+    "ctrlo" to str(R.string.keyhelp_ctrlo),
+    "ctrld" to str(R.string.keyhelp_ctrld),
+    "nl" to str(R.string.keyhelp_nl),
 )
 
 val DEFAULT_KEY_IDS = listOf(
@@ -167,14 +169,14 @@ fun keysFor(ids: List<String>): List<BarKey> {
 }
 
 /** tmux row (top, optional). Assumes the default prefix Ctrl+B. */
-val TmuxKeys = listOf(
+val TmuxKeys: List<BarKey> get() = listOf(
     BarKey.Raw("t_pre", "^B", "\u0002"),
-    BarKey.Raw("t_new", "새 창", "\u0002c"),
-    BarKey.Raw("t_next", "다음", "\u0002n"),
-    BarKey.Raw("t_prev", "이전", "\u0002p"),
-    BarKey.Raw("t_zoom", "확대", "\u0002z"),
-    BarKey.Raw("t_copy", "스크롤", "\u0002["),
-    BarKey.Raw("t_det", "분리", "\u0002d"),
+    BarKey.Raw("t_new", str(R.string.tmuxkey_new), "\u0002c"),
+    BarKey.Raw("t_next", str(R.string.tmuxkey_next), "\u0002n"),
+    BarKey.Raw("t_prev", str(R.string.tmuxkey_prev), "\u0002p"),
+    BarKey.Raw("t_zoom", str(R.string.tmuxkey_zoom), "\u0002z"),
+    BarKey.Raw("t_copy", str(R.string.tmuxkey_copy), "\u0002["),
+    BarKey.Raw("t_det", str(R.string.tmuxkey_det), "\u0002d"),
     BarKey.Code("t_pgup", "PgUp", KeyEvent.KEYCODE_PAGE_UP, repeat = true),
     BarKey.Code("t_pgdn", "PgDn", KeyEvent.KEYCODE_PAGE_DOWN, repeat = true),
     BarKey.Text("t_q", "q", "q"),

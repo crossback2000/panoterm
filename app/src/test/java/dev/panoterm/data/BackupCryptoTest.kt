@@ -36,19 +36,19 @@ class BackupCryptoTest {
         val blob = Backup.encrypt("secret".toByteArray(), "pw-one-123".toCharArray())
         try {
             Backup.decrypt(blob, "pw-two-456".toCharArray()); fail("decrypted with wrong password")
-        } catch (e: IllegalArgumentException) {
-            assertEquals("암호가 틀렸거나 파일이 손상되었습니다", e.message)
+        } catch (e: dev.panoterm.UiException) {
+            assertEquals(dev.panoterm.R.string.backup_bad_pw, e.res)
         }
     }
 
     @Test fun tamperedFileFails() {
         val blob = Backup.encrypt("secret".toByteArray(), "pw-one-123".toCharArray())
         blob[blob.size - 1] = (blob[blob.size - 1].toInt() xor 1).toByte()
-        try { Backup.decrypt(blob, "pw-one-123".toCharArray()); fail("tampered file accepted") } catch (_: IllegalArgumentException) {}
+        try { Backup.decrypt(blob, "pw-one-123".toCharArray()); fail("tampered file accepted") } catch (_: dev.panoterm.UiException) {}
     }
 
     @Test fun notABackup() {
-        try { Backup.decrypt("hello world, not a backup file at all".toByteArray(), "x".toCharArray()); fail() } catch (_: IllegalArgumentException) {}
+        try { Backup.decrypt("hello world, not a backup file at all".toByteArray(), "x".toCharArray()); fail() } catch (_: dev.panoterm.UiException) {}
     }
 
     @Test fun versionCompare() {

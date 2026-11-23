@@ -1,5 +1,7 @@
 package dev.panoterm.data
 
+import dev.panoterm.str
+import dev.panoterm.R
 import android.content.Context
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -69,8 +71,8 @@ class Snippets(ctx: Context) {
             Snippet("/model", "/model"),
             Snippet("/context", "/context"),
             USAGE,
-            Snippet("claude 시작", "claude"),
-            Snippet("claude 이어하기", "claude --continue"),
+            Snippet(str(R.string.snippet_claude_start), "claude"),
+            Snippet(str(R.string.snippet_claude_continue), "claude --continue"),
             Snippet("git status", "git status"),
             Snippet("git diff --stat", "git diff --stat"),
         )

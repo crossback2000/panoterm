@@ -1,5 +1,8 @@
 package dev.panoterm.ui
 
+import androidx.compose.ui.res.stringResource
+import dev.panoterm.str
+import dev.panoterm.R
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
@@ -62,6 +65,7 @@ fun HostListScreen(
     val peers by app.tailscale.peers.collectAsState()
     val lastLog by app.tailscale.lastLog.collectAsState()
     val ctx = LocalContext.current
+    val res = androidx.compose.ui.platform.LocalResources.current
 
     Scaffold(
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -69,8 +73,8 @@ fun HostListScreen(
             TopAppBar(
                 title = { Text("PanoTerm") },
                 actions = {
-                    TextButton(onClick = onKeys) { Text("SSH 키") }
-                    TextButton(onClick = onLicenses) { Text("설정") }
+                    TextButton(onClick = onKeys) { Text(stringResource(R.string.ssh_keys)) }
+                    TextButton(onClick = onLicenses) { Text(stringResource(R.string.settings_title)) }
                 },
             )
         },
@@ -98,15 +102,15 @@ fun HostListScreen(
             }
 
             if (sessions.isNotEmpty()) {
-                item { SectionTitle("열린 세션") }
+                item { SectionTitle(stringResource(R.string.hosts_open_sessions)) }
                 items(sessions, key = { it.id }) { s -> SessionRow(s) { onOpenSession(s) } }
             }
 
-            item { SectionTitle("저장된 호스트") }
+            item { SectionTitle(stringResource(R.string.hosts_saved)) }
             if (hosts.isEmpty()) {
                 item {
                     Text(
-                        "아직 호스트가 없습니다. + 버튼이나 아래 Tailnet 기기에서 추가하세요.",
+                        stringResource(R.string.hosts_empty),
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
@@ -116,7 +120,7 @@ fun HostListScreen(
                     h,
                     onConnect = {
                         if (h.keyId == null || app.keys.get(h.keyId) == null) {
-                            Toast.makeText(ctx, "SSH 키를 먼저 지정하세요", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(ctx, res.getString(R.string.hosts_need_key), Toast.LENGTH_SHORT).show()
                             onEdit(h.id, null)
                         } else {
                             onConnectHost(h)
@@ -127,7 +131,7 @@ fun HostListScreen(
             }
 
             if (peers.isNotEmpty()) {
-                item { SectionTitle("Tailnet 기기") }
+                item { SectionTitle(stringResource(R.string.hosts_tailnet)) }
                 items(peers, key = { "peer-${it.dns}-${it.ip}" }) { p ->
                     PeerRow(p) { onEdit(null, Host(name = p.name, address = p.dns.ifBlank { p.ip })) }
                 }
@@ -159,12 +163,12 @@ private fun TailscaleCard(
             }
             if (authUrl != null) {
                 Spacer(Modifier.size(8.dp))
-                Button(onClick = { onLogin(authUrl) }) { Text("Tailscale 로그인 (브라우저)") }
+                Button(onClick = { onLogin(authUrl) }) { Text(stringResource(R.string.ts_login)) }
             }
             if (state == "Running") {
                 Row {
-                    TextButton(onClick = onRefresh) { Text("기기 새로고침") }
-                    TextButton(onClick = onLogout) { Text("로그아웃") }
+                    TextButton(onClick = onRefresh) { Text(stringResource(R.string.ts_refresh)) }
+                    TextButton(onClick = onLogout) { Text(stringResource(R.string.logout)) }
                 }
             }
             if (state == "Error" && lastLog.isNotBlank()) {
@@ -175,12 +179,12 @@ private fun TailscaleCard(
 }
 
 private fun stateLabel(s: String) = when (s) {
-    "Running" -> "연결됨"
-    "NeedsLogin" -> "로그인 필요"
-    "NeedsMachineAuth" -> "관리자 승인 대기"
-    "Starting" -> "시작 중"
-    "Stopped" -> "중지됨"
-    "Error" -> "오류"
+    "Running" -> str(R.string.state_connected)
+    "NeedsLogin" -> str(R.string.ts_needs_login)
+    "NeedsMachineAuth" -> str(R.string.ts_needs_auth)
+    "Starting" -> str(R.string.ts_starting)
+    "Stopped" -> str(R.string.ts_stopped)
+    "Error" -> str(R.string.ts_error)
     else -> s
 }
 
@@ -194,9 +198,9 @@ private fun SessionRow(s: TermSession, onClick: () -> Unit) {
             Text(s.host.title + (s.label?.let { " · $it" } ?: ""), Modifier.weight(1f))
             Text(
                 when (st) {
-                    TermSession.State.CONNECTED -> "연결됨"
-                    TermSession.State.CONNECTING, TermSession.State.IDLE -> "연결 중"
-                    TermSession.State.CLOSED -> "끊김"
+                    TermSession.State.CONNECTED -> stringResource(R.string.state_connected)
+                    TermSession.State.CONNECTING, TermSession.State.IDLE -> stringResource(R.string.state_connecting)
+                    TermSession.State.CLOSED -> stringResource(R.string.state_closed)
                 },
                 style = MaterialTheme.typography.bodySmall,
             )
@@ -219,7 +223,7 @@ private fun HostRow(h: Host, onConnect: () -> Unit, onEdit: () -> Unit) {
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
-            OutlinedButton(onClick = onEdit, modifier = Modifier.padding(end = 8.dp)) { Text("편집") }
+            OutlinedButton(onClick = onEdit, modifier = Modifier.padding(end = 8.dp)) { Text(stringResource(R.string.edit)) }
         }
     }
 }
@@ -233,7 +237,7 @@ private fun PeerRow(p: TailscaleManager.Peer, onAdd: () -> Unit) {
             Text(p.name)
             Text("${p.ip} · ${p.os}", style = MaterialTheme.typography.bodySmall)
         }
-        Text("+ 추가", color = MaterialTheme.colorScheme.primary)
+        Text(stringResource(R.string.add), color = MaterialTheme.colorScheme.primary)
     }
 }
 

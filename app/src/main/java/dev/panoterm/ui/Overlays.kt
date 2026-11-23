@@ -1,5 +1,8 @@
 package dev.panoterm.ui
 
+import androidx.compose.ui.res.stringResource
+import dev.panoterm.str
+import dev.panoterm.R
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
@@ -73,7 +76,7 @@ fun d2Coding(): FontFamily {
 
 private fun copy(ctx: android.content.Context, label: String, text: String) {
     ctx.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText(label, text))
-    Toast.makeText(ctx, "복사했습니다", Toast.LENGTH_SHORT).show()
+    Toast.makeText(ctx, ctx.getString(R.string.copied), Toast.LENGTH_SHORT).show()
 }
 
 /** Display width in terminal cells (CJK = 2). */
@@ -94,22 +97,22 @@ fun TableLens(tables: List<TermTable>, initialFont: Int, onClose: () -> Unit) {
 
     Column(Modifier.fillMaxSize().background(Bg)) {
         Row(Modifier.fillMaxWidth().background(Panel).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onClose) { Text("✕ 닫기") }
+            TextButton(onClick = onClose) { Text(stringResource(R.string.close_x)) }
             if (tables.isNotEmpty()) {
                 TextButton(onClick = { if (index > 0) index-- }, enabled = index > 0) { Text("◀") }
-                Text("표 ${index + 1}/${tables.size}", color = Color.White)
+                Text(stringResource(R.string.table_n_of, index + 1, tables.size), color = Color.White)
                 TextButton(onClick = { if (index < tables.size - 1) index++ }, enabled = index < tables.size - 1) { Text("▶") }
             }
             Spacer(Modifier.weight(1f))
             TextButton(onClick = { fs = (fs - 1).coerceAtLeast(8) }) { Text("A−") }
             TextButton(onClick = { fs = (fs + 1).coerceAtMost(32) }) { Text("A+") }
             if (tables.isNotEmpty()) {
-                TextButton(onClick = { copy(ctx, "table", toMarkdown(tables[index])) }) { Text("복사") }
+                TextButton(onClick = { copy(ctx, "table", toMarkdown(tables[index])) }) { Text(stringResource(R.string.copy)) }
             }
         }
         if (tables.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("화면 기록에서 표를 찾지 못했습니다.\n넓게(↔) 모드에서 Claude가 표를 그리게 하면 잘 인식됩니다.", color = Color.LightGray)
+                Text(stringResource(R.string.lens_none), color = Color.LightGray)
             }
             return@Column
         }
@@ -159,19 +162,19 @@ fun ReaderView(load: (lastOnly: Boolean, (String) -> Unit) -> Unit, initialFont:
     val ctx = LocalContext.current
     val font = d2Coding()
     var lastOnly by remember { mutableStateOf(true) }
-    var text by remember { mutableStateOf("불러오는 중…") }
+    var text by remember { mutableStateOf(str(R.string.loading)) }
     var fs by remember { mutableIntStateOf((initialFont + 3).coerceIn(10, 30)) }
-    LaunchedEffect(lastOnly) { load(lastOnly) { text = it.ifBlank { "(내용 없음)" } } }
+    LaunchedEffect(lastOnly) { load(lastOnly) { text = it.ifBlank { str(R.string.reader_empty) } } }
 
     Column(Modifier.fillMaxSize().background(Bg)) {
         Row(Modifier.fillMaxWidth().background(Panel).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            TextButton(onClick = onClose) { Text("✕ 닫기") }
+            TextButton(onClick = onClose) { Text(stringResource(R.string.close_x)) }
             Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()), verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = { lastOnly = true }) { Text(if (lastOnly) "● 마지막 응답" else "마지막 응답", maxLines = 1) }
-                TextButton(onClick = { lastOnly = false }) { Text(if (!lastOnly) "● 최근 400줄" else "최근 400줄", maxLines = 1) }
+                TextButton(onClick = { lastOnly = true }) { Text((if (lastOnly) "● " else "") + stringResource(R.string.reader_last), maxLines = 1) }
+                TextButton(onClick = { lastOnly = false }) { Text((if (!lastOnly) "● " else "") + stringResource(R.string.reader_recent), maxLines = 1) }
                 TextButton(onClick = { fs = (fs - 1).coerceAtLeast(8) }) { Text("A−") }
                 TextButton(onClick = { fs = (fs + 1).coerceAtMost(36) }) { Text("A+") }
-                TextButton(onClick = { copy(ctx, "reader", text) }) { Text("복사", maxLines = 1) }
+                TextButton(onClick = { copy(ctx, "reader", text) }) { Text(stringResource(R.string.copy), maxLines = 1) }
             }
         }
         SelectionContainer(Modifier.fillMaxSize()) {
@@ -207,6 +210,7 @@ fun ApprovalBar(prompt: ApprovalPrompt, onChoose: (String) -> Unit, onEsc: () ->
 @Composable
 fun PortsDialog(session: TermSession, onDismiss: () -> Unit) {
     val ctx = LocalContext.current
+    val res = androidx.compose.ui.platform.LocalResources.current
     val forwards by session.forwards.collectAsState()
     var port by remember { mutableStateOf("3000") }
     var host by remember { mutableStateOf("localhost") }
@@ -218,16 +222,16 @@ fun PortsDialog(session: TermSession, onDismiss: () -> Unit) {
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("포트 포워딩 미리보기") },
+        title = { Text(stringResource(R.string.ports_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
-                    "서버의 개발 서버를 폰 브라우저에서 엽니다 (SSH 터널). 열려 있는 동안 폰의 다른 앱도 이 포트에 접속할 수 있어서, 30분 동안 쓰지 않으면 자동으로 닫힙니다.",
+                    stringResource(R.string.ports_desc),
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    OutlinedTextField(host, { host = it }, label = { Text("서버 쪽 호스트") }, singleLine = true, modifier = Modifier.weight(1.4f))
-                    OutlinedTextField(port, { port = it.filter(Char::isDigit) }, label = { Text("포트") }, singleLine = true, modifier = Modifier.weight(1f))
+                    OutlinedTextField(host, { host = it }, label = { Text(stringResource(R.string.ports_host)) }, singleLine = true, modifier = Modifier.weight(1.4f))
+                    OutlinedTextField(port, { port = it.filter(Char::isDigit) }, label = { Text(stringResource(R.string.port)) }, singleLine = true, modifier = Modifier.weight(1f))
                 }
                 Button(
                     enabled = !busy && (port.toIntOrNull() ?: 0) in 1..65535,
@@ -236,20 +240,20 @@ fun PortsDialog(session: TermSession, onDismiss: () -> Unit) {
                         session.forward(host.ifBlank { "localhost" }, port.toInt()) { r ->
                             busy = false
                             r.onSuccess { open(it) }
-                                .onFailure { Toast.makeText(ctx, "실패: ${it.message}", Toast.LENGTH_LONG).show() }
+                                .onFailure { Toast.makeText(ctx, res.getString(R.string.failed_with, it.message ?: it.toString()), Toast.LENGTH_LONG).show() }
                         }
                     },
-                ) { Text("연결하고 열기") }
+                ) { Text(stringResource(R.string.ports_connect_open)) }
                 forwards.forEach { f ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("${f.remoteHost}:${f.remotePort} → 127.0.0.1:${f.localPort}", Modifier.weight(1f), fontSize = 13.sp)
-                        TextButton(onClick = { open(f) }) { Text("열기") }
-                        TextButton(onClick = { session.stopForward(f) }) { Text("중지") }
+                        TextButton(onClick = { open(f) }) { Text(stringResource(R.string.open)) }
+                        TextButton(onClick = { session.stopForward(f) }) { Text(stringResource(R.string.stop)) }
                     }
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("닫기") } },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) } },
     )
 }
 
@@ -261,27 +265,27 @@ fun CommandPalette(items: List<dev.panoterm.data.Snippet>, onDismiss: () -> Unit
     val shown = items.filter { q.isBlank() || it.label.contains(q, true) || it.text.contains(q, true) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("명령") },
+        title = { Text(stringResource(R.string.palette_title)) },
         text = {
             Column {
-                OutlinedTextField(q, { q = it }, placeholder = { Text("검색") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(q, { q = it }, placeholder = { Text(stringResource(R.string.search)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Column(Modifier.heightIn(max = 360.dp).verticalScroll(rememberScrollState())) {
                     shown.forEach { s ->
                         Column(Modifier.fillMaxWidth().clickable { onPick(s) }.padding(vertical = 8.dp)) {
                             Text(s.label, color = Color.White, fontSize = 16.sp)
                             if (s.text != s.label || !s.submit) {
                                 Text(
-                                    s.text.replace('\n', ' ') + if (s.submit) "" else "  (Enter 안 누름)",
+                                    s.text.replace('\n', ' ') + if (s.submit) "" else stringResource(R.string.palette_no_enter),
                                     color = Color.Gray, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
                                 )
                             }
                         }
                     }
-                    if (shown.isEmpty()) Text("없음. 설정 → 명령 편집에서 추가하세요.", color = Color.Gray)
+                    if (shown.isEmpty()) Text(stringResource(R.string.palette_empty), color = Color.Gray)
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("닫기") } },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) } },
     )
 }
 
@@ -291,7 +295,7 @@ fun TablesChip(count: Int, onClick: () -> Unit) {
         Modifier.padding(8.dp).background(Color(0xCC1565C0), MaterialTheme.shapes.small)
             .clickable(onClick = onClick).padding(horizontal = 10.dp, vertical = 6.dp),
     ) {
-        Text("▦ 표 ${count}개 크게 보기", color = Color.White, fontSize = 13.sp)
+        Text(stringResource(R.string.lens_button, count), color = Color.White, fontSize = 13.sp)
     }
 }
 

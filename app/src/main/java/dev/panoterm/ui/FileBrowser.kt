@@ -1,5 +1,8 @@
 package dev.panoterm.ui
 
+import androidx.compose.ui.res.stringResource
+import dev.panoterm.str
+import dev.panoterm.R
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.widget.Toast
@@ -152,11 +155,11 @@ private fun human(size: Long): String = when {
 private fun ago(sec: Long): String {
     val d = System.currentTimeMillis() / 1000 - sec
     return when {
-        d < 60 -> "방금"
-        d < 3600 -> "${d / 60}분 전"
-        d < 86400 -> "${d / 3600}시간 전"
-        d < 86400 * 30 -> "${d / 86400}일 전"
-        else -> java.text.SimpleDateFormat("yy.MM.dd", java.util.Locale.KOREA).format(java.util.Date(sec * 1000))
+        d < 60 -> str(R.string.ago_now)
+        d < 3600 -> str(R.string.ago_min, d / 60)
+        d < 86400 -> str(R.string.ago_hour, d / 3600)
+        d < 86400 * 30 -> str(R.string.ago_day, d / 86400)
+        else -> java.text.SimpleDateFormat("yy.MM.dd", java.util.Locale.ROOT).format(java.util.Date(sec * 1000))
     }
 }
 
@@ -178,7 +181,7 @@ private fun decode(bytes: ByteArray): Pair<String, Boolean>? {
 
 private fun copyText(ctx: android.content.Context, text: String) {
     ctx.getSystemService(ClipboardManager::class.java).setPrimaryClip(ClipData.newPlainText("path", text))
-    Toast.makeText(ctx, "복사했습니다", Toast.LENGTH_SHORT).show()
+    Toast.makeText(ctx, ctx.getString(R.string.copied), Toast.LENGTH_SHORT).show()
 }
 
 /** Shell-safe path for typing at the prompt (quoted only when needed). */
@@ -192,6 +195,7 @@ private fun shellPath(p: String) = if (p.all { it.isLetterOrDigit() || it in "/.
 @Composable
 fun FileBrowser(session: TermSession, fontSize: Int, onInsertPath: (String) -> Unit, onClose: () -> Unit) {
     val ctx = LocalContext.current
+    val res = androidx.compose.ui.platform.LocalResources.current
     val scope = rememberCoroutineScope()
     var dir by remember { mutableStateOf(lastDir[session.id]) }
     var entries by remember { mutableStateOf<List<Entry>>(emptyList()) }
@@ -234,7 +238,7 @@ fun FileBrowser(session: TermSession, fontSize: Int, onInsertPath: (String) -> U
             val r = withContext(Dispatchers.IO) {
                 runCatching {
                     val fd = session.readFile(path, VIEW_MAX)
-                    val dec = decode(fd.data) ?: throw IllegalStateException("바이너리 파일이라 열 수 없어요")
+                    val dec = decode(fd.data) ?: throw IllegalStateException(str(R.string.file_binary))
                     val crlf = dec.first.contains("\r\n")
                     OpenFile(
                         path = fd.path,
@@ -248,7 +252,7 @@ fun FileBrowser(session: TermSession, fontSize: Int, onInsertPath: (String) -> U
             }
             loading = false
             r.onSuccess { open = it }
-                .onFailure { Toast.makeText(ctx, it.message ?: "열 수 없습니다", Toast.LENGTH_LONG).show() }
+                .onFailure { Toast.makeText(ctx, it.message ?: res.getString(R.string.cant_open), Toast.LENGTH_LONG).show() }
         }
     }
 
@@ -287,18 +291,18 @@ fun FileBrowser(session: TermSession, fontSize: Int, onInsertPath: (String) -> U
             Box {
                 TextButton(onClick = { more = true }) { Text("⋮") }
                 DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
-                    DropdownMenuItem(text = { Text("⟳  새로고침") }, onClick = { more = false; dir?.let { load(it) } })
-                    DropdownMenuItem(text = { Text("📍  터미널 위치로") }, onClick = {
+                    DropdownMenuItem(text = { Text(stringResource(R.string.fb_refresh)) }, onClick = { more = false; dir?.let { load(it) } })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.fb_terminal_dir)) }, onClick = {
                         more = false
                         scope.launch { load(withContext(Dispatchers.IO) { session.currentDir() } ?: "~") }
                     })
-                    DropdownMenuItem(text = { Text("🏠  홈 폴더") }, onClick = { more = false; load("~") })
-                    DropdownMenuItem(text = { Text("✎  경로 직접 입력") }, onClick = { more = false; pathEdit = dir ?: "" })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.fb_home)) }, onClick = { more = false; load("~") })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.fb_enter_path)) }, onClick = { more = false; pathEdit = dir ?: "" })
                     DropdownMenuItem(
-                        text = { Text(if (showHidden) "숨김 파일 숨기기" else "숨김 파일 보이기") },
+                        text = { Text(stringResource(if (showHidden) R.string.fb_hide_hidden else R.string.fb_show_hidden)) },
                         onClick = { more = false; showHidden = !showHidden },
                     )
-                    DropdownMenuItem(text = { Text("⌨  이 폴더 경로 입력") }, onClick = {
+                    DropdownMenuItem(text = { Text(stringResource(R.string.fb_type_dir)) }, onClick = {
                         more = false
                         dir?.let { onInsertPath(shellPath(it) + " "); onClose() }
                     })
@@ -307,17 +311,17 @@ fun FileBrowser(session: TermSession, fontSize: Int, onInsertPath: (String) -> U
         }
         if (entries.size > 12 || filter.isNotEmpty()) {
             OutlinedTextField(
-                filter, { filter = it }, placeholder = { Text("파일 이름 검색") }, singleLine = true,
+                filter, { filter = it }, placeholder = { Text(stringResource(R.string.fb_filter)) }, singleLine = true,
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 2.dp),
             )
         }
         val err = error
         if (err != null) {
             Column(Modifier.fillMaxWidth().padding(16.dp)) {
-                Text("열 수 없어요: $err", color = Color(0xFFEF9A9A))
+                Text(stringResource(R.string.fb_cant_open, err ?: ""), color = Color(0xFFEF9A9A))
                 Row {
-                    TextButton(onClick = { dir?.let { load(it) } ?: run { reloadKey++ } }) { Text("다시 시도") }
-                    TextButton(onClick = { load("~") }) { Text("홈 폴더로") }
+                    TextButton(onClick = { dir?.let { load(it) } ?: run { reloadKey++ } }) { Text(stringResource(R.string.retry)) }
+                    TextButton(onClick = { load("~") }) { Text(stringResource(R.string.fb_go_home)) }
                 }
             }
         }
@@ -349,16 +353,16 @@ fun FileBrowser(session: TermSession, fontSize: Int, onInsertPath: (String) -> U
                     }
                     DropdownMenu(expanded = menuFor == e, onDismissRequest = { menuFor = null }) {
                         val p = child(dir ?: "", e.name)
-                        DropdownMenuItem(text = { Text("⌨  터미널에 경로 입력") }, onClick = {
+                        DropdownMenuItem(text = { Text(stringResource(R.string.fb_type_path)) }, onClick = {
                             menuFor = null; onInsertPath(shellPath(p) + " "); onClose()
                         })
-                        DropdownMenuItem(text = { Text("📋  경로 복사") }, onClick = { menuFor = null; copyText(ctx, p) })
+                        DropdownMenuItem(text = { Text(stringResource(R.string.fb_copy_path)) }, onClick = { menuFor = null; copyText(ctx, p) })
                     }
                 }
                 HorizontalDivider(color = Color(0xFF22222A))
             }
             if (shown.isEmpty() && !loading && error == null) {
-                item { Text("비어 있어요", color = Dim, modifier = Modifier.padding(16.dp)) }
+                item { Text(stringResource(R.string.fb_empty), color = Dim, modifier = Modifier.padding(16.dp)) }
             }
         }
     }
@@ -368,7 +372,7 @@ fun FileBrowser(session: TermSession, fontSize: Int, onInsertPath: (String) -> U
         var v by remember { mutableStateOf(pe) }
         AlertDialog(
             onDismissRequest = { pathEdit = null },
-            title = { Text("폴더 또는 파일 경로") },
+            title = { Text(stringResource(R.string.fb_path_title)) },
             text = { OutlinedTextField(v, { v = it }, singleLine = true, placeholder = { Text("~/project/.env") }) },
             confirmButton = {
                 TextButton(onClick = {
@@ -381,9 +385,9 @@ fun FileBrowser(session: TermSession, fontSize: Int, onInsertPath: (String) -> U
                         }
                         if (isFile) openFile(target) else load(target)
                     }
-                }) { Text("열기") }
+                }) { Text(stringResource(R.string.open)) }
             },
-            dismissButton = { TextButton(onClick = { pathEdit = null }) { Text("취소") } },
+            dismissButton = { TextButton(onClick = { pathEdit = null }) { Text(stringResource(R.string.cancel)) } },
         )
     }
 }
@@ -446,7 +450,7 @@ private fun FileViewer(
             Column(Modifier.weight(1f)) {
                 Text(file.name, color = Color.White, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
-                    "${lang.name} · ${lines.size}줄 · ${human(file.size)}" + if (!file.editable) " · 읽기 전용" else "",
+                    stringResource(R.string.fv_status, lang.name, lines.size, human(file.size)) + if (!file.editable) stringResource(R.string.fv_readonly) else "",
                     color = Dim, fontSize = 10.sp, maxLines = 1,
                 )
             }
@@ -455,14 +459,14 @@ private fun FileViewer(
             Box {
                 TextButton(onClick = { more = true }) { Text("⋮") }
                 DropdownMenu(expanded = more, onDismissRequest = { more = false }) {
-                    DropdownMenuItem(text = { Text(if (wrap) "줄바꿈 끄기 (가로 스크롤)" else "줄바꿈 켜기 (화면 폭 맞춤)") }, onClick = { more = false; wrap = !wrap })
-                    DropdownMenuItem(text = { Text("A+  글자 크게") }, onClick = { fs = (fs + 1).coerceAtMost(30) })
-                    DropdownMenuItem(text = { Text("A−  글자 작게") }, onClick = { fs = (fs - 1).coerceAtLeast(8) })
-                    if (isEnv) DropdownMenuItem(text = { Text(if (mask) "👁  값 보이기" else "●  값 가리기") }, onClick = { more = false; mask = !mask })
-                    DropdownMenuItem(text = { Text("⌨  터미널에 경로 입력") }, onClick = { more = false; onInsertPath(file.path) })
-                    DropdownMenuItem(text = { Text("📋  경로 복사") }, onClick = { more = false; copyText(ctx, file.path) })
-                    DropdownMenuItem(text = { Text("📋  내용 전체 복사") }, onClick = { more = false; copyText(ctx, file.text) })
-                    DropdownMenuItem(text = { Text("⟳  다시 불러오기") }, onClick = {
+                    DropdownMenuItem(text = { Text(stringResource(if (wrap) R.string.fv_wrap_off else R.string.fv_wrap_on)) }, onClick = { more = false; wrap = !wrap })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.fv_font_up)) }, onClick = { fs = (fs + 1).coerceAtMost(30) })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.fv_font_down)) }, onClick = { fs = (fs - 1).coerceAtLeast(8) })
+                    if (isEnv) DropdownMenuItem(text = { Text(stringResource(if (mask) R.string.fv_show_values else R.string.fv_hide_values)) }, onClick = { more = false; mask = !mask })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.fb_type_path)) }, onClick = { more = false; onInsertPath(file.path) })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.fb_copy_path)) }, onClick = { more = false; copyText(ctx, file.path) })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.fv_copy_all)) }, onClick = { more = false; copyText(ctx, file.text) })
+                    DropdownMenuItem(text = { Text(stringResource(R.string.fv_reload)) }, onClick = {
                         more = false
                         scope.launch {
                             withContext(Dispatchers.IO) { runCatching { reread(session, file.path) } }
@@ -476,7 +480,7 @@ private fun FileViewer(
         if (findOpen) {
             Row(Modifier.fillMaxWidth().background(Panel).padding(horizontal = 6.dp), verticalAlignment = Alignment.CenterVertically) {
                 OutlinedTextField(
-                    find, { find = it; findIndex = 0 }, singleLine = true, placeholder = { Text("찾기") },
+                    find, { find = it; findIndex = 0 }, singleLine = true, placeholder = { Text(stringResource(R.string.fv_find)) },
                     modifier = Modifier.weight(1f),
                 )
                 Text(if (matches.isEmpty()) "0" else "${findIndex + 1}/${matches.size}", color = Dim, fontSize = 12.sp, modifier = Modifier.padding(horizontal = 6.dp))
@@ -486,7 +490,7 @@ private fun FileViewer(
         }
         if (isEnv && mask) {
             Text(
-                "값을 가렸어요 (⋮ → 값 보이기)",
+                stringResource(R.string.fv_masked),
                 color = Dim, fontSize = 11.sp, modifier = Modifier.fillMaxWidth().background(Color(0xFF17171D)).padding(horizontal = 12.dp, vertical = 2.dp),
             )
         }
@@ -531,7 +535,7 @@ private fun FileViewer(
 
 private fun reread(session: TermSession, path: String): OpenFile {
     val fd = session.readFile(path, VIEW_MAX)
-    val dec = decode(fd.data) ?: throw IllegalStateException("바이너리 파일이라 열 수 없어요")
+    val dec = decode(fd.data) ?: throw IllegalStateException(str(R.string.file_binary))
     val crlf = dec.first.contains("\r\n")
     return OpenFile(fd.path, if (crlf) dec.first.replace("\r\n", "\n") else dec.first, fd.modTime, fd.size, crlf, dec.second && fd.size <= EDIT_MAX)
 }
@@ -583,6 +587,7 @@ private fun FileEditor(
     onClose: () -> Unit,
 ) {
     val ctx = LocalContext.current
+    val res = androidx.compose.ui.platform.LocalResources.current
     val scope = rememberCoroutineScope()
     val font = d2Coding()
     var base by remember { mutableStateOf(file) }
@@ -608,10 +613,10 @@ private fun FileEditor(
             r.onSuccess { mtime ->
                 base = OpenFile(base.path, text, mtime, bytes.size.toLong(), base.crlf, true)
                 onSaved(base)
-                Toast.makeText(ctx, "저장했습니다", Toast.LENGTH_SHORT).show()
+                Toast.makeText(ctx, res.getString(R.string.saved), Toast.LENGTH_SHORT).show()
             }.onFailure {
                 if (it.message?.contains(TermSession.CONFLICT) == true) conflict = true
-                else Toast.makeText(ctx, "저장 실패: ${it.message}", Toast.LENGTH_LONG).show()
+                else Toast.makeText(ctx, res.getString(R.string.save_failed, it.message ?: it.toString()), Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -628,10 +633,10 @@ private fun FileEditor(
             TextButton(onClick = { if (dirty) leaveAsk = true else onClose() }) { Text("←") }
             Column(Modifier.weight(1f)) {
                 Text((if (dirty) "● " else "") + base.name, color = Color.White, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Text("편집 중 · Ctrl+S 저장", color = Dim, fontSize = 10.sp, maxLines = 1)
+                Text(stringResource(R.string.fe_editing), color = Dim, fontSize = 10.sp, maxLines = 1)
             }
             if (saving) CircularProgressIndicator(Modifier.padding(horizontal = 8.dp).width(18.dp).height(18.dp), strokeWidth = 2.dp)
-            TextButton(enabled = dirty && !saving, onClick = { save(false) }) { Text("저장") }
+            TextButton(enabled = dirty && !saving, onClick = { save(false) }) { Text(stringResource(R.string.save)) }
         }
         BasicTextField(
             value = value,
@@ -646,9 +651,9 @@ private fun FileEditor(
     if (conflict) {
         AlertDialog(
             onDismissRequest = { conflict = false },
-            title = { Text("서버 파일이 바뀌었어요") },
-            text = { Text("이 파일을 연 뒤에 서버에서 내용이 바뀌었어요 (Claude가 고쳤을 수 있어요).\n덮어쓰면 서버 쪽 변경이 사라집니다.") },
-            confirmButton = { TextButton(onClick = { conflict = false; save(true) }) { Text("덮어쓰기") } },
+            title = { Text(stringResource(R.string.fe_conflict_title)) },
+            text = { Text(stringResource(R.string.fe_conflict_text)) },
+            confirmButton = { TextButton(onClick = { conflict = false; save(true) }) { Text(stringResource(R.string.fe_overwrite)) } },
             dismissButton = {
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     TextButton(onClick = {
@@ -658,8 +663,8 @@ private fun FileEditor(
                                 .onSuccess { base = it; value = TextFieldValue(it.text); onSaved(it) }
                                 .onFailure { Toast.makeText(ctx, it.message, Toast.LENGTH_LONG).show() }
                         }
-                    }) { Text("서버 내용 불러오기") }
-                    TextButton(onClick = { conflict = false }) { Text("취소") }
+                    }) { Text(stringResource(R.string.fe_load_server)) }
+                    TextButton(onClick = { conflict = false }) { Text(stringResource(R.string.cancel)) }
                 }
             },
         )
@@ -667,13 +672,13 @@ private fun FileEditor(
     if (leaveAsk) {
         AlertDialog(
             onDismissRequest = { leaveAsk = false },
-            title = { Text("저장하지 않은 변경") },
-            text = { Text("고친 내용을 저장할까요?") },
-            confirmButton = { TextButton(onClick = { leaveAsk = false; save(false) }) { Text("저장") } },
+            title = { Text(stringResource(R.string.fe_unsaved_title)) },
+            text = { Text(stringResource(R.string.fe_unsaved_text)) },
+            confirmButton = { TextButton(onClick = { leaveAsk = false; save(false) }) { Text(stringResource(R.string.save)) } },
             dismissButton = {
                 Row {
-                    TextButton(onClick = { leaveAsk = false; onClose() }) { Text("버리고 나가기") }
-                    TextButton(onClick = { leaveAsk = false }) { Text("취소") }
+                    TextButton(onClick = { leaveAsk = false; onClose() }) { Text(stringResource(R.string.fe_discard)) }
+                    TextButton(onClick = { leaveAsk = false }) { Text(stringResource(R.string.cancel)) }
                 }
             },
         )

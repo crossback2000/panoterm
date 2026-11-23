@@ -1,5 +1,7 @@
 package dev.panoterm.ui
 
+import androidx.compose.ui.res.stringResource
+import dev.panoterm.R
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -49,17 +51,16 @@ fun KeyBarEditorScreen(app: App, onBack: () -> Unit) {
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
-                title = { Text("화면 키 줄 편집") },
+                title = { Text(stringResource(R.string.keybar_edit_title)) },
                 navigationIcon = { TextButton(onClick = onBack) { Text("←") } },
-                actions = { TextButton(onClick = { save(emptyList()) }) { Text("기본값") } },
+                actions = { TextButton(onClick = { save(emptyList()) }) { Text(stringResource(R.string.defaults)) } },
             )
         },
     ) { pad ->
         LazyColumn(Modifier.fillMaxSize().padding(pad), contentPadding = PaddingValues(12.dp)) {
             item {
                 Text(
-                    "체크한 키가 순서대로 나옵니다. ⏎ Enter는 항상 오른쪽 끝에 고정이에요. " +
-                        "◀ ▶는 손가락으로 끌면 커서가 움직이는 키입니다.",
+                    stringResource(R.string.keybar_edit_desc),
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
@@ -75,7 +76,7 @@ fun KeyBarEditorScreen(app: App, onBack: () -> Unit) {
                     }) { Text("▼") }
                 }
             }
-            item { HorizontalDivider(Modifier.padding(vertical = 8.dp)); Text("숨긴 키", style = MaterialTheme.typography.titleSmall) }
+            item { HorizontalDivider(Modifier.padding(vertical = 8.dp)); Text(stringResource(R.string.keybar_hidden), style = MaterialTheme.typography.titleSmall) }
             itemsIndexed(disabled, key = { _, id -> "off-$id" }) { _, id ->
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Checkbox(checked = false, onCheckedChange = { save(enabled + id) })
@@ -105,16 +106,16 @@ fun SnippetsEditorScreen(app: App, onBack: () -> Unit) {
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
-                title = { Text("명령 편집") },
+                title = { Text(stringResource(R.string.snippets_title)) },
                 navigationIcon = { TextButton(onClick = onBack) { Text("←") } },
-                actions = { TextButton(onClick = { editing = true }) { Text("+ 추가") } },
+                actions = { TextButton(onClick = { editing = true }) { Text(stringResource(R.string.add)) } },
             )
         },
     ) { pad ->
         LazyColumn(Modifier.fillMaxSize().padding(pad), contentPadding = PaddingValues(12.dp)) {
             item {
                 Text(
-                    "터미널의 ⚡ 버튼이나 Ctrl+Shift+P로 엽니다. 자주 쓰는 slash 명령이나 셸 명령을 넣어두세요.",
+                    stringResource(R.string.snippets_desc),
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
@@ -126,7 +127,7 @@ fun SnippetsEditorScreen(app: App, onBack: () -> Unit) {
                     }
                     TextButton(enabled = i > 0, onClick = { app.snippets.move(i, -1) }) { Text("▲") }
                     TextButton(enabled = i < items.size - 1, onClick = { app.snippets.move(i, 1) }) { Text("▼") }
-                    TextButton(onClick = { app.snippets.remove(i) }) { Text("삭제", color = MaterialTheme.colorScheme.error) }
+                    TextButton(onClick = { app.snippets.remove(i) }) { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) }
                 }
             }
         }
@@ -138,13 +139,13 @@ fun SnippetsEditorScreen(app: App, onBack: () -> Unit) {
         var submit by remember { mutableStateOf(true) }
         AlertDialog(
             onDismissRequest = { editing = false },
-            title = { Text("명령 추가") },
+            title = { Text(stringResource(R.string.snippet_add_title)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(label, { label = it }, label = { Text("이름 (비우면 내용 그대로)") }, singleLine = true)
-                    OutlinedTextField(text, { text = it }, label = { Text("보낼 내용") })
+                    OutlinedTextField(label, { label = it }, label = { Text(stringResource(R.string.snippet_name)) }, singleLine = true)
+                    OutlinedTextField(text, { text = it }, label = { Text(stringResource(R.string.snippet_text)) })
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("보낸 뒤 Enter", Modifier.weight(1f))
+                        Text(stringResource(R.string.snippet_submit), Modifier.weight(1f))
                         Switch(checked = submit, onCheckedChange = { submit = it })
                     }
                 }
@@ -153,9 +154,9 @@ fun SnippetsEditorScreen(app: App, onBack: () -> Unit) {
                 TextButton(enabled = text.isNotBlank(), onClick = {
                     app.snippets.add(Snippet(label.ifBlank { text.lines().first().take(30) }, text, submit))
                     editing = false
-                }) { Text("저장") }
+                }) { Text(stringResource(R.string.save)) }
             },
-            dismissButton = { TextButton(onClick = { editing = false }) { Text("취소") } },
+            dismissButton = { TextButton(onClick = { editing = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
 }

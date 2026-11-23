@@ -1,5 +1,6 @@
 package dev.panoterm
 
+import androidx.compose.ui.res.stringResource
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -106,7 +107,7 @@ class MainActivity : FragmentActivity() {
             override fun onAuthenticationError(errorCode: Int, errString: CharSequence) { p.result.complete(false) }
         }).authenticate(
             BiometricPrompt.PromptInfo.Builder()
-                .setTitle("SSH 키 사용")
+                .setTitle(getString(R.string.auth_key_title))
                 .setSubtitle(p.keyName)
                 .setAllowedAuthenticators(BIOMETRIC_STRONG or DEVICE_CREDENTIAL)
                 .build(),
@@ -125,7 +126,7 @@ class MainActivity : FragmentActivity() {
             navRequest.value = Screen.Terminal(App.instance.sessions.open(h).id)
             return
         }
-        requireAuth("${h.title} 접속") { navRequest.value = Screen.Terminal(App.instance.sessions.open(h).id) }
+        requireAuth(getString(R.string.auth_connect, h.title)) { navRequest.value = Screen.Terminal(App.instance.sessions.open(h).id) }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -210,7 +211,7 @@ class MainActivity : FragmentActivity() {
         })
         prompt.authenticate(
             BiometricPrompt.PromptInfo.Builder()
-                .setTitle("PanoTerm 잠금 해제")
+                .setTitle(getString(R.string.unlock_title))
                 .setAllowedAuthenticators(BIOMETRIC_WEAK or DEVICE_CREDENTIAL)
                 .build()
         )
@@ -270,7 +271,7 @@ private fun LockScreen(onUnlock: () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text("🔒 PanoTerm", color = Color.White, style = MaterialTheme.typography.headlineSmall)
-        Button(onClick = onUnlock) { Text("잠금 해제") }
+        Button(onClick = onUnlock) { Text(stringResource(R.string.unlock)) }
     }
 }
 

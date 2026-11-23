@@ -1,5 +1,6 @@
 package dev.panoterm.term
 
+import dev.panoterm.R
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -38,7 +39,7 @@ class SessionService : Service() {
         val n = NotificationCompat.Builder(this, Notifier.CH_SESSION)
             .setSmallIcon(dev.panoterm.R.drawable.ic_stat_panoterm)
             .setContentTitle("PanoTerm")
-            .setContentText("SSH 세션 ${count}개 연결 유지 중")
+            .setContentText(getString(R.string.service_sessions, count))
             .setOngoing(true)
             .setContentIntent(Notifier.openSessionIntent(this, null))
             .build()

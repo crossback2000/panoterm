@@ -20,13 +20,13 @@ object Notifier {
     fun createChannels(ctx: Context) {
         val nm = ctx.getSystemService(NotificationManager::class.java)
         nm.createNotificationChannel(
-            NotificationChannel(CH_SESSION, "연결 유지", NotificationManager.IMPORTANCE_LOW).apply {
-                description = "SSH 세션이 열려 있는 동안 표시됩니다"
+            NotificationChannel(CH_SESSION, ctx.getString(R.string.ch_session), NotificationManager.IMPORTANCE_LOW).apply {
+                description = ctx.getString(R.string.ch_session_desc)
             }
         )
         nm.createNotificationChannel(
-            NotificationChannel(CH_AGENT, "Claude / 터미널 알림", NotificationManager.IMPORTANCE_HIGH).apply {
-                description = "입력 대기, 작업 완료, 터미널 벨"
+            NotificationChannel(CH_AGENT, ctx.getString(R.string.ch_agent), NotificationManager.IMPORTANCE_HIGH).apply {
+                description = ctx.getString(R.string.ch_agent_desc)
             }
         )
     }

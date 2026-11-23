@@ -172,7 +172,55 @@ object Completion {
  * Checked against Claude Code 2.1.
  */
 object ClaudeCommands {
-    val builtin: List<Pair<String, String>> = listOf(
+    /** In the app's language: Korean hints for a Korean locale, English otherwise. */
+    val builtin: List<Pair<String, String>>
+        get() = if (java.util.Locale.getDefault().language == "ko") korean else english
+
+    val english: List<Pair<String, String>> = listOf(
+        "/add-dir" to "add working folder",
+        "/agents" to "subagents",
+        "/btw" to "side question",
+        "/clear" to "clear conversation",
+        "/color" to "prompt color",
+        "/compact" to "summarize to save context",
+        "/config" to "settings",
+        "/context" to "context usage",
+        "/copy" to "copy last reply",
+        "/doctor" to "check install",
+        "/effort" to "thinking effort",
+        "/exit" to "exit",
+        "/export" to "export conversation",
+        "/fast" to "fast mode",
+        "/feedback" to "feedback",
+        "/help" to "help",
+        "/hooks" to "hook settings",
+        "/ide" to "connect IDE",
+        "/init" to "create CLAUDE.md",
+        "/keybindings" to "keybindings file",
+        "/login" to "log in",
+        "/logout" to "log out",
+        "/mcp" to "MCP servers",
+        "/memory" to "edit memory",
+        "/model" to "change model",
+        "/permissions" to "permissions",
+        "/plan" to "plan mode",
+        "/plugin" to "plugins",
+        "/release-notes" to "release notes",
+        "/rename" to "rename conversation",
+        "/resume" to "resume a conversation",
+        "/rewind" to "rewind",
+        "/skills" to "list skills",
+        "/status" to "status",
+        "/statusline" to "status line setup",
+        "/tasks" to "background tasks",
+        "/terminal-setup" to "terminal setup",
+        "/theme" to "theme",
+        "/todos" to "todo list",
+        "/upgrade" to "upgrade",
+        "/usage" to "usage",
+    )
+
+    val korean: List<Pair<String, String>> = listOf(
         "/add-dir" to "작업 폴더 추가",
         "/agents" to "서브에이전트",
         "/btw" to "곁가지 질문",
@@ -284,8 +332,8 @@ class Completer(
                         val out = session.execQuiet(Completion.customClaudeCommand(tmux, fallbackCwd)) ?: return@background null
                         claudeCustom = out.lines().mapNotNull { l ->
                             when {
-                                l.endsWith(".md") -> "/" + l.removeSuffix(".md") to "내 명령"
-                                l.startsWith("SKILL:") -> "/" + l.removePrefix("SKILL:") to "스킬"
+                                l.endsWith(".md") -> "/" + l.removeSuffix(".md") to dev.panoterm.str(dev.panoterm.R.string.completion_custom)
+                                l.startsWith("SKILL:") -> "/" + l.removePrefix("SKILL:") to dev.panoterm.str(dev.panoterm.R.string.completion_skill)
                                 else -> null
                             }
                         }.distinctBy { it.first }

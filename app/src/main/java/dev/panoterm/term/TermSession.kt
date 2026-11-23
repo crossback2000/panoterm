@@ -1,5 +1,7 @@
 package dev.panoterm.term
 
+import dev.panoterm.str
+import dev.panoterm.R
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.os.Handler
@@ -141,11 +143,11 @@ class TermSession(
     private val scanner = OutputScanner(
         onBell = {
             activity.onAttention()
-            if (app.settings.current.notifyOnBell) notifyUser(host.title, "입력을 기다리고 있습니다 (터미널 벨)")
+            if (app.settings.current.notifyOnBell) notifyUser(host.title, str(R.string.notify_bell))
         },
         onNotify = { title, body ->
             activity.onAttention()
-            notifyUser(title.ifBlank { host.title }, body.ifBlank { "알림" })
+            notifyUser(title.ifBlank { host.title }, body.ifBlank { str(R.string.notify_default) })
         },
         onClipboard = { text ->
             if (app.settings.current.remoteClipboard) main.post {
@@ -153,7 +155,7 @@ class TermSession(
                     .setPrimaryClip(ClipData.newPlainText("remote", text))
                 // Android 13+ shows its own "copied" confirmation; earlier versions show nothing.
                 if (android.os.Build.VERSION.SDK_INT < 33) {
-                    android.widget.Toast.makeText(app, "서버가 클립보드를 바꿨습니다", android.widget.Toast.LENGTH_SHORT).show()
+                    android.widget.Toast.makeText(app, str(R.string.clipboard_from_server), android.widget.Toast.LENGTH_SHORT).show()
                 }
             }
         },
@@ -232,16 +234,16 @@ class TermSession(
         _message.value = null
         val gen = ++generation
         val h = host
-        note("${h.user}@${h.address}:${h.port} 연결 중...")
+        note(str(R.string.note_connecting, "${h.user}@${h.address}:${h.port}"))
         thread(name = "ssh-connect") {
             var pem: ByteArray? = null
             try {
-                val keyId = h.keyId ?: throw IllegalStateException("이 호스트에 SSH 키가 지정되지 않았습니다")
+                val keyId = h.keyId ?: throw IllegalStateException(str(R.string.err_no_key))
                 val node = if (h.useTailnet) {
                     waitForTailscale()
-                    app.tailscale.nodeOrNull() ?: throw IllegalStateException("Tailscale이 시작되지 않았습니다")
+                    app.tailscale.nodeOrNull() ?: throw IllegalStateException(str(R.string.err_ts_not_started))
                 } else null
-                val key = app.keys.get(keyId) ?: throw IllegalStateException("SSH 키를 찾을 수 없습니다 (삭제되었나요?)")
+                val key = app.keys.get(keyId) ?: throw IllegalStateException(str(R.string.err_key_missing))
                 if (!key.hardware) pem = app.keys.privateKey(keyId)
                 val opts = ConnectOptions().apply {
                     setHost(h.address.trim())
@@ -272,7 +274,7 @@ class TermSession(
                     val msg = e.message ?: e.toString()
                     _message.value = msg
                     _state.value = State.CLOSED
-                    note("연결 실패: $msg")
+                    note(str(R.string.note_connect_failed, msg))
                     maybeScheduleReconnect()
                 }
             } finally {
@@ -300,7 +302,7 @@ class TermSession(
 
     private fun maybeScheduleReconnect() {
         if (!wantConnected || !host.autoReconnect) return
-        if (attempt >= 30) { note("자동 재연결 중단 (30회 실패)"); return }
+        if (attempt >= 30) { note(str(R.string.note_reconnect_gave_up)); return }
         val delaySec = minOf(30, 1 shl minOf(attempt, 5))
         attempt++
         main.post {
@@ -327,11 +329,11 @@ class TermSession(
 
     private fun waitForTailscale() {
         if (app.tailscale.isRunning) return
-        note("Tailscale 연결 대기 중...")
+        note(str(R.string.note_ts_waiting))
         val deadline = System.currentTimeMillis() + 30_000
         while (!app.tailscale.isRunning) {
             if (System.currentTimeMillis() > deadline) {
-                throw IllegalStateException("Tailscale 상태: ${app.tailscale.state.value} (로그인이 필요하면 호스트 목록에서 로그인하세요)")
+                throw IllegalStateException(str(R.string.err_ts_state, app.tailscale.state.value))
             }
             Thread.sleep(300)
         }
@@ -375,13 +377,20 @@ class TermSession(
          * Runs in its own tab; sudo asks for the password in that terminal (the app never sees it).
          * Same quoting rules as [tmuxCommand].
          */
+        /**
+         * A message for the shell scripts above: no quotes, $, backslash or backtick (it sits in
+         * echo "..." inside sh -c '...'). Empty without a running app (unit tests).
+         */
+        private fun shMsg(@androidx.annotation.StringRes id: Int): String =
+            runCatching { str(id) }.getOrDefault("").filterNot { it in "'\"`$\\" }
+
         fun installTmuxCommand(name: String): String {
             val install = listOf(
-                "echo \"[PanoTerm] tmux 설치를 시작합니다. 비밀번호를 물으면 서버(sudo) 비밀번호를 입력하세요.\"",
+                "echo \"[PanoTerm] ${shMsg(R.string.sh_tmux_install_start)}\"",
                 "S=\"\"; if [ \"\$(id -u)\" != \"0\" ] && command -v sudo >/dev/null 2>&1; then S=sudo; fi",
                 "if [ \"\$(uname -s)\" = \"Darwin\" ]; then " +
                     "B=\$(command -v brew 2>/dev/null); for p in /opt/homebrew/bin/brew /usr/local/bin/brew; do [ -z \"\$B\" ] && [ -x \"\$p\" ] && B=\$p; done; " +
-                    "if [ -n \"\$B\" ]; then \"\$B\" install tmux; else echo \"Homebrew가 없어요. https://brew.sh 에서 먼저 설치하세요.\"; fi; " +
+                    "if [ -n \"\$B\" ]; then \"\$B\" install tmux; else echo \"${shMsg(R.string.sh_no_brew)}\"; fi; " +
                     "elif command -v apt-get >/dev/null 2>&1; then \$S apt-get update && \$S apt-get install -y tmux; " +
                     "elif command -v dnf >/dev/null 2>&1; then \$S dnf install -y tmux; " +
                     "elif command -v yum >/dev/null 2>&1; then \$S yum install -y tmux; " +
@@ -389,8 +398,8 @@ class TermSession(
                     "elif command -v zypper >/dev/null 2>&1; then \$S zypper --non-interactive install tmux; " +
                     "elif command -v apk >/dev/null 2>&1; then \$S apk add tmux; " +
                     "elif command -v pkg >/dev/null 2>&1; then \$S pkg install -y tmux; " +
-                    "else echo \"이 서버의 패키지 관리자를 몰라요. tmux를 직접 설치해 주세요.\"; fi",
-                "echo \"[PanoTerm] 설치 단계 끝. tmux로 들어갑니다...\"",
+                    "else echo \"${shMsg(R.string.sh_unknown_pm)}\"; fi",
+                "echo \"[PanoTerm] ${shMsg(R.string.sh_install_done)}\"",
             )
             return "exec sh -c '${(install + tmuxScript(name)).joinToString("\n")}'"
         }
@@ -405,7 +414,7 @@ class TermSession(
                     "if [ -z \"\$T\" ] || [ ! -x \"\$T\" ]; then [ -x \"\$p\" ] && T=\$p; fi; done",
                 "if [ -n \"\$T\" ] && [ -x \"\$T\" ]; then exec \"\$T\" -u new -A -s $name; fi",
                 "printf \"\\033]777;panoterm;notmux\\007\"",
-                "echo \"[PanoTerm] tmux를 찾지 못해 일반 셸로 접속했습니다. 연결이 끊기면 실행 중인 작업도 끝나요.\"",
+                "echo \"[PanoTerm] ${shMsg(R.string.sh_no_tmux)}\"",
                 "exec \"\${SHELL:-/bin/sh}\" -l",
             )
     }
@@ -425,7 +434,7 @@ class TermSession(
             _message.value = reason
             _state.value = State.CLOSED
             main.post { tick() }
-            note("연결 종료: $reason")
+            note(str(R.string.note_closed, reason))
             maybeScheduleReconnect()
         }
     }
@@ -465,7 +474,7 @@ class TermSession(
 
     /** Uploads [data] via SFTP to ~/.cache/panoterm/ and returns the remote path through [done]. */
     fun upload(name: String, data: ByteArray, done: (Result<String>) -> Unit) {
-        val s = go ?: return done(Result.failure(IllegalStateException("연결되어 있지 않습니다")))
+        val s = go ?: return done(Result.failure(IllegalStateException(str(R.string.err_not_connected))))
         thread(name = "sftp-upload") {
             val r = runCatching { s.uploadFile(name, data) }
             main.post { done(r) }
@@ -473,7 +482,7 @@ class TermSession(
     }
 
     fun forward(remoteHost: String, remotePort: Int, done: (Result<PortForward>) -> Unit) {
-        val s = go ?: return done(Result.failure(IllegalStateException("연결되어 있지 않습니다")))
+        val s = go ?: return done(Result.failure(IllegalStateException(str(R.string.err_not_connected))))
         thread(name = "forward") {
             val r = runCatching {
                 val local = s.forwardLocal(remoteHost, remotePort.toLong()).toInt()
@@ -552,11 +561,11 @@ class TermSession(
     // ---- files (SFTP browser) ----
 
     /** Blocking; call off the main thread. JSON listing of [dir] ("" = home). */
-    fun listDir(dir: String): String = (go ?: throw IllegalStateException("연결되어 있지 않습니다")).listDir(dir)
+    fun listDir(dir: String): String = (go ?: throw IllegalStateException(str(R.string.err_not_connected))).listDir(dir)
 
     /** Blocking; call off the main thread. */
     fun readFile(path: String, maxBytes: Long): core.FileData =
-        (go ?: throw IllegalStateException("연결되어 있지 않습니다")).readFile(path, maxBytes)
+        (go ?: throw IllegalStateException(str(R.string.err_not_connected))).readFile(path, maxBytes)
 
     /**
      * Blocking; call off the main thread. Returns the new modification time. Throws with a
@@ -564,7 +573,7 @@ class TermSession(
      * it was read ([expectModTime] <= 0 skips that check).
      */
     fun writeFile(path: String, data: ByteArray, expectModTime: Long, expectSize: Long): Long =
-        (go ?: throw IllegalStateException("연결되어 있지 않습니다")).writeFile(path, data, expectModTime, expectSize)
+        (go ?: throw IllegalStateException(str(R.string.err_not_connected))).writeFile(path, data, expectModTime, expectSize)
 
     /** Blocking. The folder the shell (tmux pane) is in, or null. */
     fun currentDir(): String? {

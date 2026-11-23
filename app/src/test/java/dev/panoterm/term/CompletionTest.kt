@@ -28,7 +28,7 @@ class CompletionTest {
 
     @Test fun slashUsesClaudeMenuFirst() {
         val menu = listOf("/copy" to "Copy the last response", "/color" to "Set the prompt bar color", "/simplify" to "Review changed code")
-        val s = Completion.slashSuggestions("/co", menu, ClaudeCommands.builtin)
+        val s = Completion.slashSuggestions("/co", menu, ClaudeCommands.korean)
         assertEquals(listOf("/copy", "/color"), s.take(2).map { it.label })
         assertTrue(s.any { it.label == "/compact" })
         assertFalse(s.any { it.label == "/simplify" })

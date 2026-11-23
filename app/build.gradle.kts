@@ -44,6 +44,12 @@ android {
         manifestPlaceholders["cleartext"] = updateApi.startsWith("http://").toString()
     }
 
+    // English (res/values) + Korean (res/values-ko). Generates the locale list for the
+    // system's per-app language setting (Android 13+).
+    androidResources {
+        generateLocaleConfig = true
+    }
+
     signingConfigs {
         if (signingProps.containsKey("storeFile")) {
             create("release") {

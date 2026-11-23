@@ -48,7 +48,7 @@ object Syntax {
 
     private val C_LIKE_CONST = words("true false null")
 
-    val PLAIN = Lang("텍스트", Kind.PLAIN)
+    val PLAIN = Lang("Text", Kind.PLAIN)
     val ENV = Lang("env", Kind.ENV)
     val INI = Lang("ini", Kind.ENV)
     val YAML = Lang("yaml", Kind.YAML)

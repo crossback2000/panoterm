@@ -1,5 +1,6 @@
 package dev.panoterm.data
 
+import dev.panoterm.R
 import android.util.Base64
 import org.json.JSONArray
 import org.json.JSONObject
@@ -45,11 +46,11 @@ object Backup {
         return magic + salt + iv + c.doFinal(plain)
     }
 
-    /** Throws IllegalArgumentException on wrong password / corrupt file. */
+    /** Throws UiException on wrong password / corrupt file. */
     fun decrypt(blob: ByteArray, password: CharArray): ByteArray {
         val head = if (blob.size > MAGIC_LEN + 28) blob.copyOfRange(0, MAGIC_LEN) else null
         val (magic, iterations) = FORMATS.firstOrNull { head != null && it.first.contentEquals(head) }
-            ?: throw IllegalArgumentException("PanoTerm 백업 파일이 아닙니다")
+            ?: throw dev.panoterm.UiException(R.string.backup_not_ptbak)
         val salt = blob.copyOfRange(MAGIC_LEN, MAGIC_LEN + 16)
         val iv = blob.copyOfRange(MAGIC_LEN + 16, MAGIC_LEN + 28)
         val c = Cipher.getInstance("AES/GCM/NoPadding")
@@ -58,7 +59,7 @@ object Backup {
         return try {
             c.doFinal(blob, MAGIC_LEN + 28, blob.size - MAGIC_LEN - 28)
         } catch (e: Exception) {
-            throw IllegalArgumentException("암호가 틀렸거나 파일이 손상되었습니다")
+            throw dev.panoterm.UiException(R.string.backup_bad_pw)
         }
     }
 

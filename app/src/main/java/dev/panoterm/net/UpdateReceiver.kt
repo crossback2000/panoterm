@@ -21,8 +21,8 @@ class UpdateReceiver : BroadcastReceiver() {
         when (intent.action) {
             ACTION_STATUS -> onStatus(ctx, intent)
             Intent.ACTION_MY_PACKAGE_REPLACED -> notify(
-                ctx, "PanoTerm ${BuildConfig.VERSION_NAME}로 업데이트됐어요",
-                "눌러서 열기", PendingIntent.getActivity(
+                ctx, ctx.getString(R.string.update_installed, BuildConfig.VERSION_NAME),
+                ctx.getString(R.string.tap_to_open), PendingIntent.getActivity(
                     ctx, 0, Intent(ctx, MainActivity::class.java),
                     PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
                 ),
@@ -42,7 +42,7 @@ class UpdateReceiver : BroadcastReceiver() {
                     runCatching { ctx.startActivity(confirm) }
                 } else {
                     notify(
-                        ctx, "PanoTerm 업데이트 준비됨", "눌러서 설치를 확인하세요",
+                        ctx, ctx.getString(R.string.update_ready), ctx.getString(R.string.update_tap_install),
                         PendingIntent.getActivity(ctx, 1, confirm, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT),
                     )
                 }

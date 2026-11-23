@@ -1,5 +1,8 @@
 package dev.panoterm.ui
 
+import androidx.compose.ui.res.stringResource
+import dev.panoterm.str
+import dev.panoterm.R
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Column
@@ -34,7 +37,7 @@ import androidx.compose.ui.unit.sp
 private data class Notice(val name: String, val license: String, val copyright: String, val file: String)
 
 private val NOTICES = listOf(
-    Notice("D2Coding 폰트 1.3.2", "SIL Open Font License 1.1", "© 2015 NAVER Corporation", "D2Coding.OFL.txt"),
+    Notice("D2Coding font 1.3.2", "SIL Open Font License 1.1", "© 2015 NAVER Corporation", "D2Coding.OFL.txt"),
     Notice("xterm.js 6.0.0", "MIT", "© The xterm.js authors, SourceLair, Christopher Jeffrey", "xterm.LICENSE.txt"),
     Notice("@xterm/addon-fit 0.11.0", "MIT", "© The xterm.js authors", "xterm-addon-fit.LICENSE.txt"),
     Notice("@xterm/addon-unicode11 0.9.0", "MIT", "© The xterm.js authors", "xterm-addon-unicode11.LICENSE.txt"),
@@ -42,7 +45,7 @@ private val NOTICES = listOf(
     Notice("@xterm/addon-webgl 0.19.0", "MIT", "© The xterm.js authors", "xterm-addon-webgl.LICENSE.txt"),
     Notice("Tailscale (tsnet)", "BSD-3-Clause", "© 2020 Tailscale Inc & contributors", "tailscale.LICENSE.txt"),
     Notice("wireguard-go", "MIT", "© WireGuard LLC", "wireguard-go.LICENSE.txt"),
-    Notice("Go 표준 라이브러리", "BSD-3-Clause", "© 2009 The Go Authors", "go.LICENSE.txt"),
+    Notice("Go standard library", "BSD-3-Clause", "© 2009 The Go Authors", "go.LICENSE.txt"),
     Notice("golang.org/x/crypto", "BSD-3-Clause", "© The Go Authors", "golang.org-x-crypto.LICENSE.txt"),
     Notice("golang.org/x/mobile", "BSD-3-Clause", "© The Go Authors", "golang.org-x-mobile.LICENSE.txt"),
     Notice("github.com/pkg/sftp", "BSD-2-Clause", "© 2013 Dave Cheney", "pkg-sftp.LICENSE.txt"),
@@ -66,7 +69,7 @@ fun LicensesScreen(onBack: () -> Unit) {
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         topBar = {
             TopAppBar(
-                title = { Text(open?.first ?: "오픈소스 라이선스") },
+                title = { Text(open?.first ?: stringResource(R.string.settings_licenses)) },
                 navigationIcon = {
                     TextButton(onClick = { if (open != null) open = null else onBack() }) { Text("←") }
                 },
@@ -77,7 +80,7 @@ fun LicensesScreen(onBack: () -> Unit) {
         if (o != null) {
             val text = remember(o.second) {
                 runCatching { ctx.assets.open("licenses/${o.second}").bufferedReader().use { it.readText() } }
-                    .getOrElse { "라이선스 파일을 찾을 수 없습니다: ${o.second}" }
+                    .getOrElse { str(R.string.license_missing, o.second) }
             }
             Column(
                 Modifier.fillMaxSize().padding(pad).padding(12.dp)
@@ -90,7 +93,7 @@ fun LicensesScreen(onBack: () -> Unit) {
             LazyColumn(Modifier.fillMaxSize().padding(pad), contentPadding = PaddingValues(vertical = 8.dp)) {
                 item {
                     Text(
-                        "PanoTerm은 MIT 라이선스 오픈소스이며, 아래 오픈소스 소프트웨어와 폰트를 사용합니다. 항목을 누르면 라이선스 전문을 볼 수 있습니다.",
+                        stringResource(R.string.licenses_intro),
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
                     )
@@ -107,20 +110,19 @@ fun LicensesScreen(onBack: () -> Unit) {
                 item {
                     Column(
                         Modifier.fillMaxWidth()
-                            .clickable(enabled = hasGoList) { open = "Go 모듈 전체 목록" to GO_MODULES }
+                            .clickable(enabled = hasGoList) { open = str(R.string.go_modules) to GO_MODULES }
                             .padding(horizontal = 16.dp, vertical = 10.dp),
                     ) {
-                        Text("Go 모듈 전체 목록 (간접 의존성 포함)", style = MaterialTheme.typography.titleSmall)
+                        Text(stringResource(R.string.go_modules_full), style = MaterialTheme.typography.titleSmall)
                         Text(
-                            if (hasGoList) "go-licenses로 생성된 목록" else "아직 생성되지 않음 — scripts/gen-go-licenses.ps1 실행 필요",
+                            stringResource(if (hasGoList) R.string.go_modules_generated else R.string.go_modules_missing),
                             style = MaterialTheme.typography.bodySmall,
                         )
                     }
                 }
                 item {
                     Text(
-                        "Tailscale은 Tailscale Inc.의, WireGuard는 Jason A. Donenfeld의, Claude는 Anthropic의 상표입니다. " +
-                            "PanoTerm는 이들과 무관하며 보증받지 않았습니다.",
+                        stringResource(R.string.trademarks),
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.padding(16.dp),
                     )
