@@ -233,6 +233,12 @@
     <string name="top_width">Toggle wide view</string>
     <string name="top_lens">View tables large</string>
     <string name="top_reader">Reader mode</string>
+    <string name="top_search">Search output</string>
+    <string name="search_hint">Search output</string>
+    <string name="search_none">No matches</string>
+    <string name="search_lines">%1$d lines</string>
+    <string name="search_older">Older match</string>
+    <string name="search_newer">Newer match</string>
     <string name="top_palette">Command palette</string>
     <string name="top_image">Send image</string>
     <string name="top_files">File browser</string>

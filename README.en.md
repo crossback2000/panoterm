@@ -39,6 +39,7 @@ No ads, payments, accounts, cloud sync or usage analytics. All data stays on the
 | **Wide view** (`↔`) | Tells the server the terminal is 120, 160 or 200 columns wide, draws it at a readable font size, and lets you pan sideways. Tables and aligned output never wrap. |
 | **Table lens** (`▦`) | Finds box-drawing tables (thin, heavy and double lines) and Markdown tables on screen and in the scrollback, and shows them as native tables with a frozen first column, horizontal scrolling and Markdown copy. |
 | **Reader mode** (`📖`) | Shows the agent's last reply in large type; tables are unfolded into `▸ field: value` lists per row. |
+| **Search output** (`🔍`) | Finds text in past output and jumps to it (▲ older, ▼ newer). Inside tmux it searches tmux's whole history with tmux's copy-mode search. An all-lowercase query ignores case. |
 | **Bundled D2Coding font** | Hangul is exactly two Latin cells wide, so tables mixing Korean text stay aligned. |
 | **GPU rendering** | Renders with WebGL by default and falls back to DOM on devices without it. Pixel-smooth inertial scrolling. |
 
@@ -56,6 +57,7 @@ No ads, payments, accounts, cloud sync or usage analytics. All data stays on the
 ### Connectivity and session continuity
 
 - **Embedded Tailscale** (tsnet, userspace): does not take the Android VPN slot, so it works alongside other VPNs. After login, add hosts straight from the tailnet device list.
+- **Direct connections**: turn off "Connect over Tailscale (tailnet)" in the host editor to reach a public IP or a server on the same Wi-Fi (e.g. `192.168.0.10`) without Tailscale. Host key checks and public-key authentication apply the same way.
 - **tmux auto-attach**: attaches to the configured tmux session on connect. If tmux is missing, it can install it with the server's package manager (apt, dnf, yum, pacman, zypper, apk, brew, pkg).
 - **Keepalive and auto-reconnect**: probes every 15 seconds and treats the link as lost only after 3 consecutive unanswered probes (like OpenSSH `ServerAliveCountMax`). Reconnects with exponential backoff after network changes or drops.
 - **Background operation**: a foreground service and wake lock are held only while sessions are open.
@@ -169,6 +171,7 @@ Tuned for the Logitech K380. Lock Fn with Fn+Esc so F1–F12 work directly.
 | Ctrl+Shift+W | Toggle wide view |
 | Ctrl+Shift+P | Command palette |
 | Ctrl+Shift+E | File browser (Ctrl+S saves while editing) |
+| Ctrl+Shift+S | Search output (Enter older match, Shift+Enter newer, Esc closes) |
 | Ctrl+Alt+= / − | Font size |
 | Ctrl+Alt+T | Show/hide tmux key row |
 | Ctrl+Tab | Next session |

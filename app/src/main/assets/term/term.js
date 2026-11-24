@@ -597,6 +597,125 @@ function start() {
     return PanoText.readerText(logicalLines(buf.length - 3000, buf.length), mode);
   };
 
+  // ---------- scrollback search (without tmux; tmux sessions use tmux's own copy-mode search) ----------
+  // Matches are found per logical line (soft-wrapped rows joined) and mapped back to cells,
+  // so Korean (two cells per character) lands on the right column. The current match is
+  // tracked with a marker, which follows the line when new output trims old scrollback.
+
+  let search = null; // { q, marker, col, deco }
+
+  // Every match in the buffer, oldest first: { row, col, w (cells on the first row) }.
+  function searchMatches(q) {
+    const buf = term.buffer.active;
+    const out = [];
+    let rows = [], text = '';
+    function flush() {
+      if (!rows.length) return;
+      const idx = PanoText.findAll(text, q);
+      if (idx.length) {
+        // String index → cell, one entry per UTF-16 unit (translateToString(false) gives one
+        // character per cell and skips the right half of wide characters).
+        const map = [];
+        const cell = buf.getNullCell();
+        for (const y of rows) {
+          const line = buf.getLine(y);
+          for (let x = 0; x < term.cols; x++) {
+            line.getCell(x, cell);
+            const w = cell.getWidth();
+            if (w === 0) continue;
+            const ch = cell.getChars() || ' ';
+            for (let k = 0; k < ch.length; k++) map.push({ row: y, col: x, w: w });
+          }
+        }
+        for (const i of idx) {
+          const a = map[i], b = map[i + q.length - 1];
+          if (!a || !b) continue;
+          out.push({ row: a.row, col: a.col, w: b.row === a.row ? b.col + b.w - a.col : term.cols - a.col });
+          if (out.length >= 5000) break;
+        }
+      }
+      rows = []; text = '';
+    }
+    for (let y = 0; y < buf.length && out.length < 5000; y++) {
+      const line = buf.getLine(y);
+      if (!line) continue;
+      if (!line.isWrapped) flush();
+      rows.push(y);
+      text += line.translateToString(false);
+    }
+    flush();
+    return out;
+  }
+
+  function searchShow(m) {
+    if (search.deco) search.deco.dispose();
+    if (search.marker) search.marker.dispose();
+    const buf = term.buffer.active;
+    search.col = m.col;
+    search.marker = term.registerMarker(m.row - (buf.baseY + buf.cursorY));
+    search.deco = search.marker && term.registerDecoration({
+      marker: search.marker, x: m.col, width: Math.max(1, m.w), layer: 'top',
+      backgroundColor: '#FFB300', foregroundColor: '#000000'
+    });
+    stopFling(); setOffset(0);
+    // A third of the screen above the match: the lines that led to it stay visible.
+    term.scrollToLine(Math.max(0, m.row - Math.floor(term.rows / 3)));
+    if (fixedCols > 0) {
+      const cw = screenWidth() / term.cols;
+      const x = m.col * cw;
+      if (x < wrap.scrollLeft || x + m.w * cw > wrap.scrollLeft + wrap.clientWidth) {
+        wrap.scrollLeft = Math.max(0, x - wrap.clientWidth * 0.3);
+      }
+    }
+  }
+
+  // dir: 0 = newest match, -1 = older than the current one, +1 = newer. Wraps around.
+  function searchGo(dir) {
+    const ms = searchMatches(search.q);
+    if (!ms.length) {
+      if (search.deco) search.deco.dispose();
+      if (search.marker) search.marker.dispose();
+      search.deco = search.marker = null;
+      return JSON.stringify({ n: 0, i: -1 });
+    }
+    const cur = search.marker && !search.marker.isDisposed && search.marker.line >= 0
+      ? { row: search.marker.line, col: search.col } : null;
+    let i = ms.length - 1;
+    if (cur && dir !== 0) {
+      const at = ms.findIndex(function (m) { return m.row === cur.row && m.col === cur.col; });
+      if (at >= 0) i = (at + dir + ms.length) % ms.length;
+      else if (dir < 0) {
+        i = -1;
+        for (let k = ms.length - 1; k >= 0; k--) if (before(ms[k], cur)) { i = k; break; }
+        if (i < 0) i = ms.length - 1;
+      } else {
+        i = ms.findIndex(function (m) { return before(cur, m); });
+        if (i < 0) i = 0;
+      }
+    }
+    searchShow(ms[i]);
+    return JSON.stringify({ n: ms.length, i: i });
+  }
+
+  window.searchFind = function (q) {
+    window.searchClear(true);
+    if (!q) return JSON.stringify({ n: 0, i: -1 });
+    search = { q: q, marker: null, col: 0, deco: null };
+    return searchGo(0);
+  };
+  window.searchStep = function (dir) {
+    if (!search) return JSON.stringify({ n: 0, i: -1 });
+    return searchGo(dir < 0 ? -1 : 1);
+  };
+  window.searchClear = function (keepPosition) {
+    if (search) {
+      if (search.deco) search.deco.dispose();
+      if (search.marker) search.marker.dispose();
+      search = null;
+      if (!keepPosition) term.scrollToBottom();
+    }
+  };
+
   // ---------- analysis after output: approval prompt + table count ----------
 
   let lastPrompt = '', lastTables = -1;

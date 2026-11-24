@@ -31,6 +31,7 @@ val ALL_TOP_ACTIONS: List<TopAction> get() = listOf(
     TopAction("width", "↔", str(R.string.top_width)),
     TopAction("lens", "▦", str(R.string.top_lens)),
     TopAction("reader", "📖", str(R.string.top_reader)),
+    TopAction("search", "🔍", str(R.string.top_search)),
     TopAction("palette", "⚡", str(R.string.top_palette)),
     TopAction("image", "🖼", str(R.string.top_image)),
     TopAction("files", "📁", str(R.string.top_files)),

@@ -233,6 +233,12 @@
     <string name="top_width">넓게 보기 전환</string>
     <string name="top_lens">표 크게 보기</string>
     <string name="top_reader">읽기 모드</string>
+    <string name="top_search">출력에서 찾기</string>
+    <string name="search_hint">출력에서 찾기</string>
+    <string name="search_none">없음</string>
+    <string name="search_lines">%1$d줄</string>
+    <string name="search_older">이전 결과(위)</string>
+    <string name="search_newer">다음 결과(아래)</string>
     <string name="top_palette">명령 팔레트</string>
     <string name="top_image">이미지 보내기</string>
     <string name="top_files">파일 탐색기</string>
