@@ -76,6 +76,12 @@ data class TmuxWindow(
 object TmuxStatus {
     private const val RS = '\u001e'
     private const val US = '\u001f'
+    /** Script lines that set T to the tmux binary (empty when there is none). No single quotes. */
+    const val FIND_TMUX = "T=\n" +
+        "for t in tmux /opt/homebrew/bin/tmux /usr/local/bin/tmux /home/linuxbrew/.linuxbrew/bin/tmux " +
+        "\"\$HOME/.local/bin/tmux\" \"\$HOME/.nix-profile/bin/tmux\" /run/current-system/sw/bin/tmux; do " +
+        "if command -v \"\$t\" >/dev/null 2>&1; then T=\$t; break; fi; done"
+
     /** Pane lines sent per window: enough for Claude Code's approval box and status line. */
     const val TAIL_LINES = 40
 
@@ -91,10 +97,7 @@ object TmuxStatus {
     fun pollCommand(name: String): String {
         val n = name.replace(Regex("[^A-Za-z0-9_.-]"), "_")
         val script = listOf(
-            "T=",
-            "for t in tmux /opt/homebrew/bin/tmux /usr/local/bin/tmux /home/linuxbrew/.linuxbrew/bin/tmux " +
-                "\"\$HOME/.local/bin/tmux\" \"\$HOME/.nix-profile/bin/tmux\" /run/current-system/sw/bin/tmux; do " +
-                "if command -v \"\$t\" >/dev/null 2>&1; then T=\$t; break; fi; done",
+            FIND_TMUX,
             "[ -n \"\$T\" ] || exit 0",
             "\"\$T\" list-windows -t \"=$n\" -F \"#{window_index}\t#{window_active}\t#{pane_current_command}\t#{window_name}\" 2>/dev/null |",
             "while IFS=\"\t\" read -r i a c w; do",

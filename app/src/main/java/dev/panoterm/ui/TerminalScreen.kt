@@ -110,6 +110,7 @@ fun TerminalScreen(
     var menuOpen by remember { mutableStateOf(false) }
     var paletteOpen by remember { mutableStateOf(false) }
     var filesOpen by remember { mutableStateOf(false) }
+    var searchOpen by remember(session.id) { mutableStateOf(false) }
     var hasSelection by remember { mutableStateOf(false) }
     val snippets by app.snippets.items.collectAsState()
 
@@ -129,6 +130,12 @@ fun TerminalScreen(
         }
     }
     val suggestions by completer.suggestions.collectAsState()
+    val search = remember(session.id) { ScrollbackSearch(session) { terminal.view.value } }
+
+    fun closeSearch() {
+        search.close()
+        searchOpen = false
+    }
     val suggestAnchor by completer.anchor.collectAsState()
 
     fun persist(f: (dev.panoterm.data.Host) -> dev.panoterm.data.Host) {
@@ -219,6 +226,7 @@ fun TerminalScreen(
             "image" -> imagePickerLaunch()
             "ports" -> portsOpen = true
             "files" -> filesOpen = true
+            "search" -> if (searchOpen) closeSearch() else searchOpen = true
             "paste" -> paste()
             "fontUp" -> changeFont(+1)
             "fontDown" -> changeFont(-1)
@@ -240,6 +248,7 @@ fun TerminalScreen(
             cs && e.keyCode == KeyEvent.KEYCODE_W -> { cycleWidth(); true }
             cs && e.keyCode == KeyEvent.KEYCODE_P -> { paletteOpen = true; true }
             cs && e.keyCode == KeyEvent.KEYCODE_E -> { filesOpen = true; true }
+            cs && e.keyCode == KeyEvent.KEYCODE_S -> { searchOpen = true; true }
             ca && (e.keyCode == KeyEvent.KEYCODE_EQUALS || e.keyCode == KeyEvent.KEYCODE_PLUS || e.keyCode == KeyEvent.KEYCODE_NUMPAD_ADD) -> { changeFont(+1); true }
             ca && (e.keyCode == KeyEvent.KEYCODE_MINUS || e.keyCode == KeyEvent.KEYCODE_NUMPAD_SUBTRACT) -> { changeFont(-1); true }
             ca && e.keyCode == KeyEvent.KEYCODE_T -> { showTmux = !showTmux; true }
@@ -315,6 +324,7 @@ fun TerminalScreen(
         input.requestFocus()
 
         onDispose {
+            search.close() // tmux would stay in copy mode and take the next keys as commands
             completer.dispose()
             terminal.view.value.setComposition("")
             toolbar.hide()
@@ -326,13 +336,15 @@ fun TerminalScreen(
         }
     }
 
-    // While the file browser is open, hardware keys go to its text fields, not the terminal.
-    DisposableEffect(filesOpen) {
-        if (filesOpen) {
+    // While the file browser or the search row is open, hardware keys go to its text fields,
+    // not the terminal.
+    val textFieldOpen = filesOpen || searchOpen
+    DisposableEffect(textFieldOpen) {
+        if (textFieldOpen) {
             if (activity.keyTarget === input) activity.keyTarget = null
         }
         onDispose {
-            if (filesOpen) {
+            if (textFieldOpen) {
                 activity.keyTarget = input
                 input.requestFocus()
             }
@@ -467,6 +479,7 @@ fun TerminalScreen(
                     Modifier.align(Alignment.BottomCenter).fillMaxWidth()
                         .onSizeChanged { webView.setBottomInset(it.height) },
                 ) {
+                    if (searchOpen) SearchBar(search, onClose = ::closeSearch)
                     val p = prompt
                     if (p != null && settings.approvalOverlay) {
                         ApprovalBar(p, onChoose = { n -> input.settle(); session.send(n) }, onEsc = { input.settle(); session.send("\u001b") })

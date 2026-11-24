@@ -1,4 +1,4 @@
-// PanoTerm text analysis: table extraction, reader cards, approval prompt detection.
+// PanoTerm text analysis: table extraction, reader cards, approval prompt detection, search.
 // Pure functions over arrays of logical lines (no xterm / DOM), so they run in the WebView
 // (as the global `PanoText`, loaded before term.js) and under Node for tests
 // (app/src/test/js/tables.test.js).
@@ -144,9 +144,28 @@
     return { q: view[qi].replace(/[│┃|]/g, '').trim(), opts: opts };
   }
 
+  // ---------- scrollback search ----------
+
+  /**
+   * Start indexes of [q] in [text], left to right, not overlapping. Smart case like tmux and
+   * less: a query without capitals ignores case, one with capitals matches it exactly.
+   */
+  function findAll(text, q) {
+    const out = [];
+    if (!q) return out;
+    const fold = q === q.toLowerCase();
+    const hay = fold ? text.toLowerCase() : text;
+    const needle = fold ? q.toLowerCase() : q;
+    // toLowerCase() can change the length of a few characters (İ): positions would be off.
+    if (hay.length !== text.length) return out;
+    let i = hay.indexOf(needle);
+    while (i >= 0) { out.push(i); i = hay.indexOf(needle, i + needle.length); }
+    return out;
+  }
+
   const api = {
     isBorder: isBorder, cells: cells, parseBlock: parseBlock, findTables: findTables,
-    tablesToCards: tablesToCards, readerText: readerText, findPrompt: findPrompt
+    tablesToCards: tablesToCards, readerText: readerText, findPrompt: findPrompt, findAll: findAll
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.PanoText = api;

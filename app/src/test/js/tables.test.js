@@ -238,3 +238,23 @@ test('no prompt: no question, or fewer than two options', () => {
   assert.equal(T.findPrompt(['Do you want to proceed?', '1. Yes']), null);
   assert.equal(T.findPrompt([]), null);
 });
+
+// ---------- findAll (scrollback search) ----------
+
+test('findAll: lowercase query ignores case', () => {
+  assert.deepEqual(T.findAll('Error: error ERROR', 'error'), [0, 7, 13]);
+});
+
+test('findAll: query with capitals matches case', () => {
+  assert.deepEqual(T.findAll('Error: error ERROR', 'Error'), [0]);
+});
+
+test('findAll: Korean and no overlap', () => {
+  assert.deepEqual(T.findAll('한글 한글한글', '한글'), [0, 3, 5]);
+  assert.deepEqual(T.findAll('aaaa', 'aa'), [0, 2]);
+});
+
+test('findAll: empty query or no match', () => {
+  assert.deepEqual(T.findAll('abc', ''), []);
+  assert.deepEqual(T.findAll('abc', 'x'), []);
+});

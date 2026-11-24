@@ -69,8 +69,9 @@ The core idea is to **decouple** the PTY column count from the on-screen font si
 2. **Pinch zoom is visual only**: the PTY size does not change, so the agent's screen is not redrawn.
 3. **Table lens**: finds box-drawing tables (thin, heavy, double lines, heavy header rules) and Markdown tables (including short alignment rows) on screen and in the scrollback. Tables broken by line wrapping are reassembled and shown natively (frozen first column, horizontal scroll). The logic lives in `assets/term/tables.js` and is covered by Node tests.
 4. **Reader mode**: strips ANSI from the last reply and reflows it to the screen width; tables are unfolded into per-row lists.
-5. **Server-side hint**: `MOBILE_TERM=1` is set on connect so the agent can be asked to answer in a phone-friendly format.
-6. **Font**: bundles D2Coding (OFL 1.1) with exact CJK double-width and box-drawing widths.
+5. **Search output**: with tmux attached, xterm.js only holds the visible screen and the history lives in tmux (alternate screen). So inside tmux the side channel runs tmux's copy-mode search (`search-backward-text`, `search-backward` before 3.2) and tmux scrolls and highlights by itself. The query travels as printf octal escapes so it can't break the shell quoting. Without tmux, the xterm.js buffer is searched per logical line, mapped back to cells (Korean is two cells wide), and the current match is shown with a marker and decoration.
+6. **Server-side hint**: `MOBILE_TERM=1` is set on connect so the agent can be asked to answer in a phone-friendly format.
+7. **Font**: bundles D2Coding (OFL 1.1) with exact CJK double-width and box-drawing widths.
 
 ---
 
@@ -151,8 +152,8 @@ The core idea is to **decouple** the PTY column count from the on-screen font si
 | Layer | Tool | Coverage |
 |---|---|---|
 | Go core | `go test` (in-process SSH server) | connect, PTY, environment, window size, SFTP, port forwarding, host key rejection, hardware-key signing, keepalive tolerance and timeout |
-| Kotlin | JUnit (`testDebugUnitTest`) | IME buffer and input core, Hangul automaton, key encoding, output scanning, agent status, autocomplete, paste sanitizing, backup crypto, tmux script quoting |
-| JavaScript | `node --test` | table detection, reader mode, approval prompt parsing |
+| Kotlin | JUnit (`testDebugUnitTest`) | IME buffer and input core, Hangul automaton, key encoding, output scanning, agent status, autocomplete, paste sanitizing, backup crypto, tmux script quoting, tmux search (run against a real tmux when one is installed) |
+| JavaScript | `node --test` | table detection, reader mode, approval prompt parsing, search matching |
 | Manual | real device | IME behaviour (Samsung Keyboard, Gboard), K380, Tailscale login, auto-update |
 
 ---

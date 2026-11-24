@@ -18,6 +18,9 @@ import kotlin.math.abs
 /** A table extracted from the terminal buffer for the table lens. */
 data class TermTable(val header: Boolean, val rows: List<List<String>>)
 
+/** Scrollback search result: [count] matches, the shown one is [index] (oldest = 0, -1 = none). */
+data class SearchHit(val count: Int, val index: Int)
+
 /** Claude Code approval prompt detected on screen. */
 data class ApprovalPrompt(val question: String, val options: List<Pair<String, String>>)
 
@@ -221,6 +224,23 @@ class TerminalWebView(ctx: Context) : WebView(ctx) {
 
     /** Text being composed by the keyboard, drawn at the cursor ("" hides it). */
     fun setComposition(text: String) = js("setComposition(${JSONObject.quote(text)})")
+
+    /** Scrollback search in the page's own buffer: jumps to the newest match of [query]. */
+    fun searchFind(query: String, cb: (SearchHit) -> Unit) = searchCall("searchFind(${JSONObject.quote(query)})", cb)
+
+    /** Next match: [older] = further back in the output. Wraps around. */
+    fun searchStep(older: Boolean, cb: (SearchHit) -> Unit) = searchCall("searchStep(${if (older) -1 else 1})", cb)
+
+    /** Removes the highlight and scrolls back to the bottom. */
+    fun searchClear() = js("searchClear()")
+
+    private fun searchCall(code: String, cb: (SearchHit) -> Unit) {
+        if (!ready) return cb(SearchHit(0, -1))
+        evaluateJavascript(code) { json ->
+            val o = runCatching { JSONObject(jsString(json)) }.getOrNull()
+            cb(SearchHit(o?.optInt("n") ?: 0, o?.optInt("i", -1) ?: -1))
+        }
+    }
 
     fun readerText(lastResponseOnly: Boolean, cb: (String) -> Unit) =
         evaluateJavascript("getReaderText('${if (lastResponseOnly) "last" else "recent"}')") { cb(jsString(it)) }
