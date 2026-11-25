@@ -9,6 +9,7 @@ import android.content.pm.PackageInstaller
 import android.content.pm.PackageManager
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.IntentCompat
 import dev.panoterm.App
 import dev.panoterm.BuildConfig
 import dev.panoterm.MainActivity
@@ -36,7 +37,7 @@ class UpdateReceiver : BroadcastReceiver() {
         when (status) {
             PackageInstaller.STATUS_PENDING_USER_ACTION -> {
                 // First self-update (or the system wants confirmation): show the system dialog.
-                val confirm = intent.getParcelableExtra(Intent.EXTRA_INTENT, Intent::class.java) ?: return
+                val confirm = IntentCompat.getParcelableExtra(intent, Intent.EXTRA_INTENT, Intent::class.java) ?: return
                 confirm.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 if (app.isForeground) {
                     runCatching { ctx.startActivity(confirm) }

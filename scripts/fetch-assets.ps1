@@ -29,10 +29,10 @@ if (-not (Test-Path (Join-Path $fonts 'D2Coding-Regular.ttf'))) {
     Write-Host 'D2Coding'
     $tmp = Join-Path ([IO.Path]::GetTempPath()) ("d2coding-" + [guid]::NewGuid())
     New-Item -ItemType Directory $tmp | Out-Null
-    Get-File 'https://github.com/naver/d2codingfont/releases/download/VER1.3.2/D2Coding-Ver1.3.2-20180524.zip' (Join-Path $tmp 'd2.zip')
+    Get-File 'https://github.com/naver/d2-coding-font/releases/download/VER1.4.0/D2Coding-Ver1.4.0-20261003.zip' (Join-Path $tmp 'd2.zip')
     Expand-Archive (Join-Path $tmp 'd2.zip') -DestinationPath $tmp
-    Copy-Item (Join-Path $tmp 'D2Coding\D2Coding-Ver1.3.2-20180524.ttf')     (Join-Path $fonts 'D2Coding-Regular.ttf')
-    Copy-Item (Join-Path $tmp 'D2Coding\D2CodingBold-Ver1.3.2-20180524.ttf') (Join-Path $fonts 'D2Coding-Bold.ttf')
+    Copy-Item (Join-Path $tmp 'D2Coding\D2Coding-Ver1.4.0-20261003.ttf')     (Join-Path $fonts 'D2Coding-Regular.ttf')
+    Copy-Item (Join-Path $tmp 'D2Coding\D2CodingBold-Ver1.4.0-20261003.ttf') (Join-Path $fonts 'D2Coding-Bold.ttf')
     Remove-Item -Recurse -Force $tmp
 }
 

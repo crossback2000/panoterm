@@ -12,7 +12,7 @@ PanoTerm 자체는 [MIT 라이선스](LICENSE)입니다. 아래는 PanoTerm에 �
 
 | 구성요소 | 버전 | 라이선스 | 저작권 | 포함 위치 | 라이선스 파일 |
 |---|---|---|---|---|---|
-| [D2Coding](https://github.com/naver/d2codingfont) 폰트 (Regular, Bold) | 1.3.2 (2018-05-24) | SIL Open Font License 1.1 | © 2015 NAVER Corporation, Reserved Font Name "D2Coding", "D2Coding-Bold" | `assets/term/fonts/` | `D2Coding.OFL.txt` (+ `fonts/OFL.txt`) |
+| [D2Coding](https://github.com/naver/d2codingfont) 폰트 (Regular, Bold) | 1.4.0 (2026-10-03) | SIL Open Font License 1.1 | © 2015 NAVER Corporation, Reserved Font Name "D2Coding", "D2Coding-Bold" | `assets/term/fonts/` | `D2Coding.OFL.txt` (+ `fonts/OFL.txt`) |
 | [xterm.js](https://github.com/xtermjs/xterm.js) `@xterm/xterm` | 6.0.0 | MIT | © 2017-2019 The xterm.js authors, © 2014-2016 SourceLair Private Company, © 2012-2013 Christopher Jeffrey | `assets/term/xterm.js`, `xterm.css` | `xterm.LICENSE.txt` |
 | `@xterm/addon-fit` | 0.11.0 | MIT | © 2019 The xterm.js authors | `assets/term/addon-fit.js` | `xterm-addon-fit.LICENSE.txt` |
 | `@xterm/addon-unicode11` | 0.9.0 | MIT | © 2019 The xterm.js authors | `assets/term/addon-unicode11.js` | `xterm-addon-unicode11.LICENSE.txt` |

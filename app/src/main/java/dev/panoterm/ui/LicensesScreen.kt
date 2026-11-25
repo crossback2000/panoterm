@@ -37,7 +37,7 @@ import androidx.compose.ui.unit.sp
 private data class Notice(val name: String, val license: String, val copyright: String, val file: String)
 
 private val NOTICES = listOf(
-    Notice("D2Coding font 1.3.2", "SIL Open Font License 1.1", "© 2015 NAVER Corporation", "D2Coding.OFL.txt"),
+    Notice("D2Coding font 1.4.0", "SIL Open Font License 1.1", "© 2015 NAVER Corporation", "D2Coding.OFL.txt"),
     Notice("xterm.js 6.0.0", "MIT", "© The xterm.js authors, SourceLair, Christopher Jeffrey", "xterm.LICENSE.txt"),
     Notice("@xterm/addon-fit 0.11.0", "MIT", "© The xterm.js authors", "xterm-addon-fit.LICENSE.txt"),
     Notice("@xterm/addon-unicode11 0.9.0", "MIT", "© The xterm.js authors", "xterm-addon-unicode11.LICENSE.txt"),
