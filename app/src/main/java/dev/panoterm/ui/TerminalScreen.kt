@@ -5,7 +5,6 @@ import dev.panoterm.R
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
-import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.view.KeyEvent
@@ -67,6 +66,7 @@ import dev.panoterm.term.TermSession
 import dev.panoterm.term.TermTable
 import dev.panoterm.term.TerminalInputView
 import dev.panoterm.term.SessionTerminal
+import androidx.core.net.toUri
 
 /** Column presets for the wide viewport (0 = fit to screen). */
 private val WIDTHS = listOf(0, 120, 160, 200)
@@ -192,7 +192,7 @@ fun TerminalScreen(
     fun openUrl(url: String) {
         if (!dev.panoterm.term.TerminalWebView.isWebUrl(url)) return
         runCatching {
-            ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)).addCategory(Intent.CATEGORY_BROWSABLE))
+            ctx.startActivity(Intent(Intent.ACTION_VIEW, url.toUri()).addCategory(Intent.CATEGORY_BROWSABLE))
         }
     }
 
@@ -534,7 +534,7 @@ fun TerminalScreen(
 
     if (portsOpen) PortsDialog(session) { portsOpen = false }
     confirmUrl?.let { url ->
-        val uri = Uri.parse(url)
+        val uri = url.toUri()
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { confirmUrl = null },
             title = { Text(stringResource(R.string.open_link)) },

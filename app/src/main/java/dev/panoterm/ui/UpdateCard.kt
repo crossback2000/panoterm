@@ -3,7 +3,6 @@ package dev.panoterm.ui
 import androidx.compose.ui.res.stringResource
 import dev.panoterm.R
 import android.content.Intent
-import android.net.Uri
 import android.provider.Settings
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -23,6 +22,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import dev.panoterm.App
 import dev.panoterm.net.UpdateChecker.State
+import androidx.core.net.toUri
 
 /** Update status card on the host list. Hidden when there is nothing to show. */
 @Composable
@@ -39,7 +39,7 @@ fun UpdateCard(app: App) {
                     Text(stringResource(R.string.upd_available, st.u.version))
                     Row {
                         TextButton(onClick = { app.updates.download() }) { Text(stringResource(R.string.upd_get)) }
-                        TextButton(onClick = { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(st.u.url))) }) { Text(stringResource(R.string.upd_changes)) }
+                        TextButton(onClick = { ctx.startActivity(Intent(Intent.ACTION_VIEW, st.u.url.toUri())) }) { Text(stringResource(R.string.upd_changes)) }
                         TextButton(onClick = { app.updates.dismiss() }) { Text(stringResource(R.string.upd_later)) }
                     }
                 }
@@ -62,7 +62,7 @@ fun UpdateCard(app: App) {
                     Row {
                         TextButton(onClick = {
                             ctx.startActivity(
-                                Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, Uri.parse("package:${ctx.packageName}"))
+                                Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES, "package:${ctx.packageName}".toUri())
                             )
                         }) { Text(stringResource(R.string.upd_go_allow)) }
                         TextButton(onClick = { app.updates.install() }) { Text(stringResource(R.string.upd_retry_install)) }
@@ -76,7 +76,7 @@ fun UpdateCard(app: App) {
                     Text(st.message, color = MaterialTheme.colorScheme.error)
                     Row {
                         if (st.u != null) TextButton(onClick = { app.updates.download() }) { Text(stringResource(R.string.upd_redownload)) }
-                        TextButton(onClick = { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(dev.panoterm.net.UpdateChecker.RELEASES))) }) { Text(stringResource(R.string.upd_manual)) }
+                        TextButton(onClick = { ctx.startActivity(Intent(Intent.ACTION_VIEW, dev.panoterm.net.UpdateChecker.RELEASES.toUri())) }) { Text(stringResource(R.string.upd_manual)) }
                         TextButton(onClick = { app.updates.dismiss() }) { Text(stringResource(R.string.close)) }
                     }
                 }

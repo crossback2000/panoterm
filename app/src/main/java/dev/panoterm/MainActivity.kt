@@ -142,7 +142,8 @@ class MainActivity : FragmentActivity() {
         // on the same Wi-Fi) until ACCESS_LOCAL_NETWORK is granted. Without it Tailscale still
         // works over the internet/DERP, so a denial only costs LAN hosts and latency.
         val wanted = buildList {
-            add(Manifest.permission.POST_NOTIFICATIONS)
+            // POST_NOTIFICATIONS only exists from Android 13; Android 12 shows notifications without asking.
+            if (android.os.Build.VERSION.SDK_INT >= 33) add(Manifest.permission.POST_NOTIFICATIONS)
             if (android.os.Build.VERSION.SDK_INT >= 37) add(Manifest.permission.ACCESS_LOCAL_NETWORK)
         }.filter { ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED }
         if (wanted.isNotEmpty()) requestPermissions.launch(wanted.toTypedArray())

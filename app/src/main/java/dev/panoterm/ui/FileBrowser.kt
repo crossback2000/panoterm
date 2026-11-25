@@ -1,5 +1,6 @@
 package dev.panoterm.ui
 
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import dev.panoterm.str
 import dev.panoterm.R
@@ -82,6 +83,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.nio.ByteBuffer
 import java.nio.charset.CodingErrorAction
+import java.util.Locale
 
 private val Bg = Color(0xFF101014)
 private val Panel = Color(0xFF1B1B22)
@@ -149,7 +151,7 @@ private fun maskEnv(line: String): String {
 private fun human(size: Long): String = when {
     size < 1024 -> "$size B"
     size < 1024 * 1024 -> "${size / 1024} KB"
-    else -> String.format("%.1f MB", size / 1048576.0)
+    else -> String.format(Locale.ROOT, "%.1f MB", size / 1048576.0)
 }
 
 private fun ago(sec: Long): String {
@@ -450,7 +452,7 @@ private fun FileViewer(
             Column(Modifier.weight(1f)) {
                 Text(file.name, color = Color.White, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Text(
-                    stringResource(R.string.fv_status, lang.name, lines.size, human(file.size)) + if (!file.editable) stringResource(R.string.fv_readonly) else "",
+                    stringResource(R.string.fv_status, lang.name, pluralStringResource(R.plurals.count_lines, lines.size, lines.size), human(file.size)) + if (!file.editable) stringResource(R.string.fv_readonly) else "",
                     color = Dim, fontSize = 10.sp, maxLines = 1,
                 )
             }

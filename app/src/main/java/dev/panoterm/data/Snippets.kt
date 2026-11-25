@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import org.json.JSONArray
 import org.json.JSONObject
+import androidx.core.content.edit
 
 /** A saved command for the command palette. [submit] = press Enter after typing it. */
 data class Snippet(val label: String, val text: String, val submit: Boolean = true) {
@@ -30,11 +31,11 @@ class Snippets(ctx: Context) {
         }.getOrDefault(DEFAULTS)
         // v1.2.2: add /usage once to lists the user had already customised.
         if (!prefs.getBoolean("added_usage", false)) {
-            prefs.edit().putBoolean("added_usage", true).apply()
+            prefs.edit { putBoolean("added_usage", true) }
             if (saved.none { it.text == "/usage" }) {
                 val i = saved.indexOfFirst { it.text == "/context" }.let { if (it < 0) saved.size else it + 1 }
                 val next = saved.toMutableList().apply { add(i, USAGE) }
-                prefs.edit().putString("items", JSONArray(next.map { it.toJson() }).toString()).apply()
+                prefs.edit { putString("items", JSONArray(next.map { it.toJson() }).toString()) }
                 return next
             }
         }
@@ -42,7 +43,7 @@ class Snippets(ctx: Context) {
     }
 
     fun set(list: List<Snippet>) {
-        prefs.edit().putString("items", JSONArray(list.map { it.toJson() }).toString()).apply()
+        prefs.edit { putString("items", JSONArray(list.map { it.toJson() }).toString()) }
         _items.value = list
     }
 

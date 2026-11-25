@@ -4,6 +4,7 @@ import dev.panoterm.R
 import android.content.Context
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import androidx.core.content.edit
 
 /** App-wide preferences (local only). */
 class Settings(ctx: Context) {
@@ -90,33 +91,37 @@ class Settings(ctx: Context) {
         }
         // v1.3.0: Tab goes back in, as the leftmost key.
         if (!prefs.getBoolean("keybar_tab_v130", false) && "tab" !in next) next = listOf("tab") + next
-        prefs.edit().putBoolean("keybar_v122", true).putBoolean("keybar_tab_v130", true).putString("keyBar", next.joinToString(",")).apply()
+        prefs.edit {
+            putBoolean("keybar_v122", true)
+            putBoolean("keybar_tab_v130", true)
+            putString("keyBar", next.joinToString(","))
+        }
         return next
     }
 
     fun update(f: (Values) -> Values) {
         val v = f(_values.value)
-        prefs.edit()
-            .putBoolean("biometricLock", v.biometricLock)
-            .putBoolean("keyAuth", v.keyAuth)
-            .putBoolean("capsAsCtrl", v.capsAsCtrl)
-            .putBoolean("volumeAsCtrl", v.volumeAsCtrl)
-            .putBoolean("appHangul", v.appHangul)
-            .putString("hangulToggle", v.hangulToggle.name)
-            .putBoolean("notifyOnBell", v.notifyOnBell)
-            .putBoolean("remoteClipboard", v.remoteClipboard)
-            .putBoolean("keepScreenOn", v.keepScreenOn)
-            .putBoolean("approvalOverlay", v.approvalOverlay)
-            .putBoolean("twoFingerEsc", v.twoFingerEsc)
-            .putBoolean("autocomplete", v.autocomplete)
-            .putBoolean("agentTabs", v.agentTabs)
-            .putString("renderer", v.renderer)
-            .putBoolean("updateCheck", v.updateCheck)
-            .putBoolean("autoUpdate", v.autoUpdate)
-            .putBoolean("updateWifiOnly", v.updateWifiOnly)
-            .putString("keyBar", v.keyBar.distinct().joinToString(","))
-            .putString("topBar", v.topBar.distinct().joinToString(","))
-            .apply()
+        prefs.edit {
+            putBoolean("biometricLock", v.biometricLock)
+            putBoolean("keyAuth", v.keyAuth)
+            putBoolean("capsAsCtrl", v.capsAsCtrl)
+            putBoolean("volumeAsCtrl", v.volumeAsCtrl)
+            putBoolean("appHangul", v.appHangul)
+            putString("hangulToggle", v.hangulToggle.name)
+            putBoolean("notifyOnBell", v.notifyOnBell)
+            putBoolean("remoteClipboard", v.remoteClipboard)
+            putBoolean("keepScreenOn", v.keepScreenOn)
+            putBoolean("approvalOverlay", v.approvalOverlay)
+            putBoolean("twoFingerEsc", v.twoFingerEsc)
+            putBoolean("autocomplete", v.autocomplete)
+            putBoolean("agentTabs", v.agentTabs)
+            putString("renderer", v.renderer)
+            putBoolean("updateCheck", v.updateCheck)
+            putBoolean("autoUpdate", v.autoUpdate)
+            putBoolean("updateWifiOnly", v.updateWifiOnly)
+            putString("keyBar", v.keyBar.distinct().joinToString(","))
+            putString("topBar", v.topBar.distinct().joinToString(","))
+        }
         _values.value = v
     }
 }

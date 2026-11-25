@@ -14,6 +14,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import kotlin.math.abs
+import androidx.core.net.toUri
 
 /** A table extracted from the terminal buffer for the table lens. */
 data class TermTable(val header: Boolean, val rows: List<List<String>>)
@@ -128,11 +129,15 @@ class TerminalWebView(ctx: Context) : WebView(ctx) {
             false
         }
         // Debug builds: console diagnostics; scroll benchmark only with `adb shell setprop debug.panoterm.bench 1`.
-        val bench = runCatching {
-            Class.forName("android.os.SystemProperties").getMethod("get", String::class.java)
-                .invoke(null, "debug.panoterm.bench") == "1"
-        }.getOrDefault(false)
-        val debug = if (dev.panoterm.BuildConfig.DEBUG) "&debug=1" + (if (bench) "&bench=1" else "") else ""
+        // Release builds never touch the hidden SystemProperties API.
+        val debug = if (dev.panoterm.BuildConfig.DEBUG) {
+            @SuppressLint("PrivateApi")
+            val bench = runCatching {
+                Class.forName("android.os.SystemProperties").getMethod("get", String::class.java)
+                    .invoke(null, "debug.panoterm.bench") == "1"
+            }.getOrDefault(false)
+            "&debug=1" + (if (bench) "&bench=1" else "")
+        } else ""
         loadUrl("${ASSET_ROOT}index.html#fs=$fontSize&cols=$fixedCols&r=$renderer$debug")
     }
 
@@ -335,7 +340,7 @@ class TerminalWebView(ctx: Context) : WebView(ctx) {
 
         /** Only http(s) links leave the terminal (no intent:, file:, javascript:, …). */
         fun isWebUrl(url: String): Boolean {
-            val scheme = runCatching { android.net.Uri.parse(url).scheme }.getOrNull()?.lowercase()
+            val scheme = runCatching { url.toUri().scheme }.getOrNull()?.lowercase()
             return scheme == "http" || scheme == "https"
         }
     }
