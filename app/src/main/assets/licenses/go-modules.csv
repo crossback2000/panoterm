@@ -15,7 +15,7 @@ github.com/klauspost/compress/zstd/internal/xxhash,https://github.com/klauspost/
 github.com/kr/fs,https://github.com/kr/fs/blob/v0.1.0/LICENSE,BSD-3-Clause
 github.com/mdlayher/socket,https://github.com/mdlayher/socket/blob/v0.7.0/LICENSE.md,MIT
 github.com/pires/go-proxyproto,https://github.com/pires/go-proxyproto/blob/v0.15.0/LICENSE,Apache-2.0
-github.com/pkg/sftp,https://github.com/pkg/sftp/blob/v1.13.12/LICENSE,BSD-2-Clause
+github.com/pkg/sftp,https://github.com/pkg/sftp/blob/v1.13.13/LICENSE,BSD-2-Clause
 github.com/tailscale/peercred,https://github.com/tailscale/peercred/blob/35a0c7bd7edc/LICENSE,BSD-3-Clause
 github.com/tailscale/wireguard-go,https://github.com/tailscale/wireguard-go/blob/9e0ab45c16ca/LICENSE,MIT
 github.com/x448/float16,https://github.com/x448/float16/blob/v0.8.4/LICENSE,MIT
@@ -23,7 +23,7 @@ go4.org/mem,https://github.com/go4org/mem/blob/ae6ca9944745/LICENSE,Apache-2.0
 go4.org/netipx,https://github.com/go4org/netipx/blob/3075585bcbeb/LICENSE,BSD-3-Clause
 golang.org/x/crypto,https://cs.opensource.google/go/x/crypto/+/v0.59.0:LICENSE,BSD-3-Clause
 golang.org/x/exp,https://cs.opensource.google/go/x/exp/+/85c1c220:LICENSE,BSD-3-Clause
-golang.org/x/net,https://cs.opensource.google/go/x/net/+/v0.62.0:LICENSE,BSD-3-Clause
+golang.org/x/net,https://cs.opensource.google/go/x/net/+/v0.63.0:LICENSE,BSD-3-Clause
 golang.org/x/oauth2,https://cs.opensource.google/go/x/oauth2/+/v0.37.0:LICENSE,BSD-3-Clause
 golang.org/x/sync/errgroup,https://cs.opensource.google/go/x/sync/+/v0.25.0:LICENSE,BSD-3-Clause
 golang.org/x/sys,https://cs.opensource.google/go/x/sys/+/v0.50.0:LICENSE,BSD-3-Clause
