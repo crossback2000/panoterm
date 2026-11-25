@@ -2,6 +2,7 @@ package dev.panoterm
 
 import androidx.compose.ui.res.stringResource
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
@@ -220,7 +221,13 @@ class MainActivity : FragmentActivity() {
     /**
      * Hardware keys are taken here, before Compose focus handling, so Tab / arrows /
      * Esc never move UI focus and Shift+Tab etc. reach the terminal.
+     *
+     * RestrictedApi is a false positive: dispatchKeyEvent is public Activity API; lint trips on
+     * androidx.core's ComponentActivity override being marked @RestrictTo. The alternatives
+     * (onKeyDown, Compose onPreviewKeyEvent) run after the focused WebView/Compose node has
+     * already taken Tab/arrows, so they can't replace this.
      */
+    @SuppressLint("RestrictedApi")
     override fun dispatchKeyEvent(original: KeyEvent): Boolean {
         val t = keyTarget
         if (t != null && t.isAttachedToWindow && !locked.value) {
@@ -249,7 +256,13 @@ class MainActivity : FragmentActivity() {
      * it into a fallback BACK, which would leave the terminal. While the terminal has the keys,
      * a BACK from an external hardware keyboard is Esc. The on-screen back gesture comes from a
      * virtual device and still navigates.
+     *
+     * GestureBackNavigation is a false positive: this isn't back handling (that goes through
+     * BackHandler / OnBackPressedDispatcher). OnBackPressedCallback can't tell which device sent
+     * BACK, so it can't keep keyboard Esc and the back gesture apart; the KeyEvent can.
+     * Hardware keyboard keys still arrive as KeyEvents with predictive back enabled.
      */
+    @SuppressLint("GestureBackNavigation")
     private fun backAsEscape(e: KeyEvent): KeyEvent? {
         if (e.keyCode != KeyEvent.KEYCODE_BACK) return null
         val dev = e.device
