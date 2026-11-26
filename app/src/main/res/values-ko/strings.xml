@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<!-- TypographyEllipsis: note_* / sh_* lines are printed inside the terminal, where "…" is an
+     East Asian ambiguous-width character that can shift columns; keep "...". -->
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="settings_title">설정</string>
     <string name="settings_security">보안</string>
     <string name="settings_bio_app">앱 열 때 생체인증</string>
@@ -328,18 +330,18 @@
     <string name="notify_bell">입력을 기다리고 있습니다 (터미널 벨)</string>
     <string name="notify_default">알림</string>
     <string name="clipboard_from_server">서버가 클립보드를 바꿨습니다</string>
-    <string name="note_connecting">%1$s 연결 중...</string>
+    <string name="note_connecting" tools:ignore="TypographyEllipsis">%1$s 연결 중...</string>
     <string name="err_no_key">이 호스트에 SSH 키가 지정되지 않았습니다</string>
     <string name="err_ts_not_started">Tailscale이 시작되지 않았습니다</string>
     <string name="err_key_missing">SSH 키를 찾을 수 없습니다 (삭제되었나요?)</string>
     <string name="note_connect_failed">연결 실패: %1$s</string>
     <string name="note_reconnect_gave_up">자동 재연결 중단 (30회 실패)</string>
-    <string name="note_ts_waiting">Tailscale 연결 대기 중...</string>
+    <string name="note_ts_waiting" tools:ignore="TypographyEllipsis">Tailscale 연결 대기 중...</string>
     <string name="err_ts_state">Tailscale 상태: %1$s (로그인이 필요하면 호스트 목록에서 로그인하세요)</string>
     <string name="sh_tmux_install_start">tmux 설치를 시작합니다. 비밀번호를 물으면 서버(sudo) 비밀번호를 입력하세요.</string>
     <string name="sh_no_brew">Homebrew가 없어요. https://brew.sh 에서 먼저 설치하세요.</string>
     <string name="sh_unknown_pm">이 서버의 패키지 관리자를 몰라요. tmux를 직접 설치해 주세요.</string>
-    <string name="sh_install_done">설치 단계 끝. tmux로 들어갑니다...</string>
+    <string name="sh_install_done" tools:ignore="TypographyEllipsis">설치 단계 끝. tmux로 들어갑니다...</string>
     <string name="sh_no_tmux">tmux를 찾지 못해 일반 셸로 접속했습니다. 연결이 끊기면 실행 중인 작업도 끝나요.</string>
     <string name="note_closed">연결 종료: %1$s</string>
     <string name="err_not_connected">연결되어 있지 않습니다</string>

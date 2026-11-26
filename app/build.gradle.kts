@@ -50,6 +50,12 @@ android {
         generateLocaleConfig = true
     }
 
+    // Any lint warning fails the build (CI runs lintDebug). Exceptions live in app/lint.xml or
+    // as @SuppressLint / tools:ignore next to the code, each with the reason.
+    lint {
+        warningsAsErrors = true
+    }
+
     signingConfigs {
         if (signingProps.containsKey("storeFile")) {
             create("release") {

@@ -118,6 +118,7 @@ class MainActivity : FragmentActivity() {
 
     /** Opens (or resumes) a session for [h], asking for biometrics first if configured. */
     fun connectHost(h: Host) {
+        Shortcuts.reportUsed(this, h.id)
         if (App.instance.sessions.sessions.value.any { it.host.id == h.id }) {
             navRequest.value = Screen.Terminal(App.instance.sessions.open(h).id)
             return

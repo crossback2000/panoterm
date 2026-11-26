@@ -7,6 +7,7 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Base64
 import android.view.MotionEvent
+import android.view.View
 import android.view.ViewConfiguration
 import android.webkit.JavascriptInterface
 import android.webkit.WebView
@@ -120,7 +121,11 @@ class TerminalWebView(ctx: Context) : WebView(ctx) {
         // The page does its own long-press selection; suppress the WebView's native one.
         setOnLongClickListener { true }
         isHapticFeedbackEnabled = false
-        setOnTouchListener { _, e ->
+        // Tap detection only: returns false, so the WebView still gets every event and does its
+        // own click/accessibility handling. ClickableViewAccessibility wants performClick() on a
+        // tap, but that plays the system touch sound on every terminal tap.
+        @SuppressLint("ClickableViewAccessibility")
+        val tapDetector = View.OnTouchListener { _, e ->
             when (e.actionMasked) {
                 MotionEvent.ACTION_DOWN -> { downX = e.x; downY = e.y; downT = e.eventTime; multiTouch = false }
                 MotionEvent.ACTION_POINTER_DOWN -> multiTouch = true
@@ -128,6 +133,7 @@ class TerminalWebView(ctx: Context) : WebView(ctx) {
             }
             false
         }
+        setOnTouchListener(tapDetector)
         // Debug builds: console diagnostics; scroll benchmark only with `adb shell setprop debug.panoterm.bench 1`.
         // Release builds never touch the hidden SystemProperties API.
         val debug = if (dev.panoterm.BuildConfig.DEBUG) {

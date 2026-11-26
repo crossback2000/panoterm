@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Project-wide lint exceptions. Single-spot false positives are suppressed in code next to the
+     reason instead. CI fails on any warning (warningsAsErrors in app/build.gradle.kts). -->
+<lint>
+    <!-- Release APKs are arm64-only on purpose (see README "Known limitations"). -->
+    <issue id="ChromeOsAbiSupport" severity="ignore" />
+
+    <!-- minSdk is 31, so lint wants mipmap-anydpi instead of mipmap-anydpi-v26. With AGP 9.5
+         the renamed folder ends up as an empty generated -v26 folder and mipmap/ic_launcher
+         is missing at build time, so the -v26 folder stays. -->
+    <issue id="ObsoleteSdkInt">
+        <ignore path="src/main/res/mipmap-anydpi-v26" />
+    </issue>
+</lint>
