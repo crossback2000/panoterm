@@ -53,9 +53,11 @@
     <string name="settings_check_now">지금 확인</string>
     <string name="settings_about">정보</string>
     <string name="settings_licenses">오픈소스 라이선스</string>
-    <string name="backup_done">백업 완료: 호스트 %1$d개, 키 %2$d개</string>
-    <string name="backup_skipped_hw"> (하드웨어 키 %1$d개 제외)</string>
-    <string name="import_done">가져오기 완료: 호스트 %1$d개, 키 %2$d개</string>
+    <string name="backup_done">백업 완료: %1$s, %2$s</string>
+    <plurals name="backup_skipped_hw">
+        <item quantity="other"> (하드웨어 키 %1$d개 제외)</item>
+    </plurals>
+    <string name="import_done">가져오기 완료: %1$s, %2$s</string>
     <string name="failed_with">실패: %1$s</string>
     <string name="backup_pw_set">백업 암호 정하기</string>
     <string name="backup_pw_enter">백업 암호 입력</string>
@@ -116,7 +118,7 @@
     <string name="fb_empty">비어 있어요</string>
     <string name="fb_path_title">폴더 또는 파일 경로</string>
     <string name="open">열기</string>
-    <string name="fv_status">%1$s · %2$d줄 · %3$s</string>
+    <string name="fv_status">%1$s · %2$s · %3$s</string>
     <string name="fv_readonly"> · 읽기 전용</string>
     <string name="fv_wrap_off">줄바꿈 끄기 (가로 스크롤)</string>
     <string name="fv_wrap_on">줄바꿈 켜기 (화면 폭 맞춤)</string>
@@ -229,14 +231,18 @@
     <string name="search">검색</string>
     <string name="palette_no_enter">  (Enter 안 누름)</string>
     <string name="palette_empty">없음. 설정 → 명령 편집에서 추가하세요.</string>
-    <string name="lens_button">▦ 표 %1$d개 크게 보기</string>
+    <plurals name="lens_button">
+        <item quantity="other">▦ 표 %1$d개 크게 보기</item>
+    </plurals>
     <string name="top_width">넓게 보기 전환</string>
     <string name="top_lens">표 크게 보기</string>
     <string name="top_reader">읽기 모드</string>
     <string name="top_search">출력에서 찾기</string>
     <string name="search_hint">출력에서 찾기</string>
     <string name="search_none">없음</string>
-    <string name="search_lines">%1$d줄</string>
+    <plurals name="count_lines">
+        <item quantity="other">%1$d줄</item>
+    </plurals>
     <string name="search_older">이전 결과(위)</string>
     <string name="search_newer">다음 결과(아래)</string>
     <string name="top_palette">명령 팔레트</string>
@@ -355,4 +361,11 @@
     <string name="completion_skill">스킬</string>
     <string name="settings_language">언어</string>
     <string name="lang_system">시스템 설정 따르기</string>
+
+    <plurals name="count_hosts">
+        <item quantity="other">호스트 %1$d개</item>
+    </plurals>
+    <plurals name="count_keys">
+        <item quantity="other">키 %1$d개</item>
+    </plurals>
 </resources>

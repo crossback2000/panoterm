@@ -200,11 +200,12 @@ fun SettingsScreen(
                     if (mode == "export") {
                         val (blob, s) = dev.panoterm.data.Backup.export(app.hosts, app.keys, app.knownHosts.path, app.snippets, pw)
                         ctx.contentResolver.openOutputStream(uri, "wt")!!.use { it.write(blob) }
-                        res.getString(R.string.backup_done, s.hosts, s.keys) + if (s.skippedHardwareKeys > 0) res.getString(R.string.backup_skipped_hw, s.skippedHardwareKeys) else ""
+                        res.getString(R.string.backup_done, res.getQuantityString(R.plurals.count_hosts, s.hosts, s.hosts), res.getQuantityString(R.plurals.count_keys, s.keys, s.keys)) +
+                            if (s.skippedHardwareKeys > 0) res.getQuantityString(R.plurals.backup_skipped_hw, s.skippedHardwareKeys, s.skippedHardwareKeys) else ""
                     } else {
                         val blob = ctx.contentResolver.openInputStream(uri)!!.use { it.readBytes() }
                         val s = dev.panoterm.data.Backup.import(blob, pw, app.hosts, app.keys, app.knownHosts, app.snippets)
-                        res.getString(R.string.import_done, s.hosts, s.keys)
+                        res.getString(R.string.import_done, res.getQuantityString(R.plurals.count_hosts, s.hosts, s.hosts), res.getQuantityString(R.plurals.count_keys, s.keys, s.keys))
                     }
                 }.getOrElse { res.getString(R.string.failed_with, it.message ?: it.toString()) }
                 pw.fill(' ')

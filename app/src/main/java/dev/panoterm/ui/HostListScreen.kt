@@ -4,7 +4,6 @@ import androidx.compose.ui.res.stringResource
 import dev.panoterm.str
 import dev.panoterm.R
 import android.content.Intent
-import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -46,6 +45,7 @@ import dev.panoterm.App
 import dev.panoterm.data.Host
 import dev.panoterm.net.TailscaleManager
 import dev.panoterm.term.TermSession
+import androidx.core.net.toUri
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -95,7 +95,7 @@ fun HostListScreen(
                     state = tsState,
                     authUrl = authUrl,
                     lastLog = lastLog,
-                    onLogin = { url -> ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) },
+                    onLogin = { url -> ctx.startActivity(Intent(Intent.ACTION_VIEW, url.toUri())) },
                     onRefresh = { app.tailscale.refreshPeers() },
                     onLogout = { app.tailscale.logout() },
                 )

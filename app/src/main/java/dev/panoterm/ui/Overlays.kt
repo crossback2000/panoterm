@@ -1,12 +1,12 @@
 package dev.panoterm.ui
 
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import dev.panoterm.str
 import dev.panoterm.R
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Intent
-import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -55,6 +55,7 @@ import dev.panoterm.term.ApprovalPrompt
 import dev.panoterm.term.PortForward
 import dev.panoterm.term.TermSession
 import dev.panoterm.term.TermTable
+import androidx.core.net.toUri
 
 private val Bg = Color(0xFF101014)
 private val Panel = Color(0xFF1B1B22)
@@ -217,7 +218,7 @@ fun PortsDialog(session: TermSession, onDismiss: () -> Unit) {
     var busy by remember { mutableStateOf(false) }
 
     fun open(f: PortForward) = runCatching {
-        ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("http://127.0.0.1:${f.localPort}/")))
+        ctx.startActivity(Intent(Intent.ACTION_VIEW, "http://127.0.0.1:${f.localPort}/".toUri()))
     }
 
     AlertDialog(
@@ -295,7 +296,7 @@ fun TablesChip(count: Int, onClick: () -> Unit) {
         Modifier.padding(8.dp).background(Color(0xCC1565C0), MaterialTheme.shapes.small)
             .clickable(onClick = onClick).padding(horizontal = 10.dp, vertical = 6.dp),
     ) {
-        Text(stringResource(R.string.lens_button, count), color = Color.White, fontSize = 13.sp)
+        Text(pluralStringResource(R.plurals.lens_button, count, count), color = Color.White, fontSize = 13.sp)
     }
 }
 

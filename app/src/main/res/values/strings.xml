@@ -53,9 +53,12 @@
     <string name="settings_check_now">Check now</string>
     <string name="settings_about">About</string>
     <string name="settings_licenses">Open source licenses</string>
-    <string name="backup_done">Backup saved: %1$d hosts, %2$d keys</string>
-    <string name="backup_skipped_hw"> (%1$d hardware keys left out)</string>
-    <string name="import_done">Imported: %1$d hosts, %2$d keys</string>
+    <string name="backup_done">Backup saved: %1$s, %2$s</string>
+    <plurals name="backup_skipped_hw">
+        <item quantity="one"> (%1$d hardware key left out)</item>
+        <item quantity="other"> (%1$d hardware keys left out)</item>
+    </plurals>
+    <string name="import_done">Imported: %1$s, %2$s</string>
     <string name="failed_with">Failed: %1$s</string>
     <string name="backup_pw_set">Set a backup password</string>
     <string name="backup_pw_enter">Enter backup password</string>
@@ -116,7 +119,7 @@
     <string name="fb_empty">Empty</string>
     <string name="fb_path_title">Folder or file path</string>
     <string name="open">Open</string>
-    <string name="fv_status">%1$s · %2$d lines · %3$s</string>
+    <string name="fv_status">%1$s · %2$s · %3$s</string>
     <string name="fv_readonly"> · read-only</string>
     <string name="fv_wrap_off">Wrap off (scroll sideways)</string>
     <string name="fv_wrap_on">Wrap on (fit width)</string>
@@ -229,14 +232,20 @@
     <string name="search">Search</string>
     <string name="palette_no_enter">  (no Enter)</string>
     <string name="palette_empty">None. Add some in Settings → Edit commands.</string>
-    <string name="lens_button">▦ View %1$d table(s) large</string>
+    <plurals name="lens_button">
+        <item quantity="one">▦ View %1$d table large</item>
+        <item quantity="other">▦ View %1$d tables large</item>
+    </plurals>
     <string name="top_width">Toggle wide view</string>
     <string name="top_lens">View tables large</string>
     <string name="top_reader">Reader mode</string>
     <string name="top_search">Search output</string>
     <string name="search_hint">Search output</string>
     <string name="search_none">No matches</string>
-    <string name="search_lines">%1$d lines</string>
+    <plurals name="count_lines">
+        <item quantity="one">%1$d line</item>
+        <item quantity="other">%1$d lines</item>
+    </plurals>
     <string name="search_older">Older match</string>
     <string name="search_newer">Newer match</string>
     <string name="top_palette">Command palette</string>
@@ -355,4 +364,14 @@
     <string name="completion_skill">skill</string>
     <string name="settings_language">Language</string>
     <string name="lang_system">System default</string>
+
+    <!-- Counts used inside backup_done / import_done. -->
+    <plurals name="count_hosts">
+        <item quantity="one">%1$d host</item>
+        <item quantity="other">%1$d hosts</item>
+    </plurals>
+    <plurals name="count_keys">
+        <item quantity="one">%1$d key</item>
+        <item quantity="other">%1$d keys</item>
+    </plurals>
 </resources>

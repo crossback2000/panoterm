@@ -29,6 +29,7 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.input.key.onPreviewKeyEvent
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -154,7 +155,7 @@ fun SearchBar(search: ScrollbackSearch, onClose: () -> Unit) {
                 when {
                     n == 0 -> stringResource(R.string.search_none)
                     search.index >= 0 -> "${search.index + 1}/$n"
-                    else -> stringResource(R.string.search_lines, n)
+                    else -> pluralStringResource(R.plurals.count_lines, n, n)
                 },
                 color = if (n == 0) Color(0xFFFF8A80) else Color.LightGray, fontSize = 13.sp,
                 modifier = Modifier.padding(horizontal = 6.dp),

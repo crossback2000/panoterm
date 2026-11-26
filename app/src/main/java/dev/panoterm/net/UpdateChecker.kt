@@ -22,6 +22,7 @@ import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
+import androidx.core.content.edit
 
 /**
  * Self-updater for GitHub-distributed builds.
@@ -108,9 +109,14 @@ class UpdateChecker(private val ctx: Context) {
                         }
                     }
                 }
-                prefs.edit().putLong("checkedAt", System.currentTimeMillis())
-                    .putString("version", tag).putString("url", o.optString("html_url", RELEASES))
-                    .putString("apkUrl", apkUrl).putLong("apkSize", size).putString("sha256", sha).apply()
+                prefs.edit {
+                    putLong("checkedAt", System.currentTimeMillis())
+                    putString("version", tag)
+                    putString("url", o.optString("html_url", RELEASES))
+                    putString("apkUrl", apkUrl)
+                    putLong("apkSize", size)
+                    putString("sha256", sha)
+                }
                 val u = cached()
                 if (u == null) { _state.value = State.Idle; return@launch }
                 val cur = _state.value
