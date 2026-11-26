@@ -12,6 +12,7 @@ import android.os.PowerManager
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import dev.panoterm.Notifier
+import android.annotation.SuppressLint
 
 /**
  * Keeps the process (and the embedded Tailscale node) alive while SSH sessions
@@ -34,6 +35,11 @@ class SessionService : Service() {
 
     override fun onBind(intent: Intent?): IBinder? = null
 
+    // InlinedApi: FOREGROUND_SERVICE_TYPE_SPECIAL_USE is an API 34 constant. On 29-33
+    // ServiceCompat passes it through to startForeground, and the system only checks that it
+    // is a subset of the manifest's foregroundServiceType, which aapt compiled to the same bit.
+    // Left as is: changing the type passed on Android 12-13 can't be verified without devices.
+    @SuppressLint("InlinedApi")
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val count = intent?.getIntExtra(EXTRA_COUNT, 1) ?: 1
         val n = NotificationCompat.Builder(this, Notifier.CH_SESSION)
